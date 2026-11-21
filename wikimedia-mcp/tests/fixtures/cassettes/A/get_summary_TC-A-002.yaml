@@ -1,0 +1,20 @@
+{
+  "case_id": "TC-A-002",
+  "tool": "get_summary",
+  "request": { "title": "Earth", "project": "enwiki", "lang": "en" },
+  "response": {
+    "status": 200,
+    "body": {
+      "title": "Earth",
+      "displaytitle": "Earth",
+      "description": "Third planet from the Sun",
+      "extract": "Earth is the third planet from the Sun.",
+      "thumbnail": { "source": "https://upload.wikimedia.org/earth.png", "width": 120, "height": 120 },
+      "pageid": 12345,
+      "wikibase_item": "Q2",
+      "content_urls": { "desktop": { "page": "https://en.wikipedia.org/wiki/Earth" } },
+      "revision": 1293847560,
+      "timestamp": "2026-11-20T09:14:22Z"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "case_id": "TC-A-009",
+  "tool": "get_media",
+  "request": { "title": "Earth", "project": "enwiki", "limit": 5 },
+  "response": {
+    "status": 200,
+    "items": [{
+      "title": "File:Earth.jpg",
+      "mime": "image/jpeg",
+      "license": { "short": "CC BY-SA 4.0", "url": "https://creativecommons.org/licenses/by-sa/4.0/" },
+      "attribution": { "required": true }
+    }]
+  }
+}

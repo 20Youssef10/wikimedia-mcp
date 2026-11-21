@@ -1,0 +1,6 @@
+{
+  "case_id": "TC-A-004",
+  "tool": "get_summary",
+  "request": { "title": "ThisPageDefinitelyDoesNotExist_9f3a2b", "project": "enwiki", "lang": "en" },
+  "response": { "status": 404, "body": { "type": "not_found", "title": "ThisPageDefinitelyDoesNotExist_9f3a2b" } }
+}
