@@ -48,7 +48,7 @@ export class RawStdioClient {
 
   request(method: string, params: Record<string, unknown> = {}, id = 1, version = '2026-07-28'): Promise<StdioRpcResult> {
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error(`stdio timeout for ${method}`)), 15000);
+      const timer = setTimeout(() => reject(new Error(`stdio timeout for ${method}`)), 30000);
       this.pending.set(id, (body) => {
         clearTimeout(timer);
         resolve({ body, raw: JSON.stringify(body) });

@@ -1,15 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { TOOL_SCHEMAS, TOOL_DESCRIPTIONS, IDEMPOTENT_TOOLS } from '../../src/server/tools/schemas.js';
+import { TOOL_SCHEMAS, TOOL_DESCRIPTIONS, IDEMPOTENT_TOOLS, PHASE1_TOOL_NAMES } from '../../src/server/tools/schemas.js';
 import { TOOL_NAMES } from '../../src/server/tools/registry.js';
 
 describe('tool schemas (AC-21/AC-22/AC-23)', () => {
-  it('advertises exactly nine tools with descriptions', () => {
-    expect(TOOL_NAMES).toEqual([
+  it('advertises exactly nine Phase 1 tools with descriptions (AC-35)', () => {
+    // Phase 2 adds six Group B tools to TOOL_NAMES; the frozen Phase 1 set
+    // remains exactly these nine, unchanged in name, schema and error code.
+    expect(PHASE1_TOOL_NAMES).toEqual([
       'search', 'get_summary', 'get_page', 'get_sections', 'get_related_pages',
       'get_media', 'get_languages', 'get_random_page', 'get_feed',
     ]);
-    for (const name of TOOL_NAMES) {
+    expect(TOOL_NAMES).toHaveLength(15);
+    for (const name of PHASE1_TOOL_NAMES) {
       expect(TOOL_DESCRIPTIONS[name].length).toBeGreaterThan(20);
       expect(z.toJSONSchema(TOOL_SCHEMAS[name]).type).toBe('object');
     }

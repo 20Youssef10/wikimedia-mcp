@@ -38,7 +38,19 @@ export type ToolErrorCode =
   | 'quota_exhausted'
   | 'upstream_unavailable'
   | 'timeout'
-  | 'internal_error';
+  | 'internal_error'
+  // Phase 2 (Group B — Wikidata) additive codes.
+  | 'invalid_qid'
+  | 'invalid_property'
+  | 'invalid_site'
+  | 'invalid_external_id'
+  | 'unsupported_scheme'
+  | 'entity_not_found'
+  | 'external_id_not_found'
+  | 'invalid_query'
+  | 'query_limit_required'
+  | 'query_too_complex'
+  | 'query_timeout';
 
 export type ToolError = {
   code: ToolErrorCode;
@@ -48,6 +60,8 @@ export type ToolError = {
   hint: string | null;
   action: string;
   details: Record<string, unknown>;
+  /** Additive field used by SPARQL guard errors (TC-B-006 / AC-48). */
+  limits?: Record<string, unknown>;
 };
 
 export type ToolPayload = Record<string, unknown> & Partial<Provenance>;

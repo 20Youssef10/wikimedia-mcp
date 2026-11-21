@@ -33,8 +33,10 @@ async function freePort(): Promise<number> {
 
 /** Per-tool measured-call mix from contract 09 §4.2 (sum = 300). */
 const MIX: Record<string, number> = {
-  get_summary: 60, search: 45, get_feed: 39, get_page: 36, get_sections: 30,
-  get_related_pages: 24, get_languages: 24, get_media: 24, get_random_page: 18,
+  // Class R (REST): 60+40+25+25 = 150; Class A (Action): 45+35+30+22+18 = 150.
+  // Both pools must meet STANDARD_LIVE_CONFIG.minSamplesPerClass (150).
+  get_summary: 60, search: 45, get_feed: 40, get_page: 35, get_sections: 30,
+  get_related_pages: 25, get_languages: 25, get_media: 22, get_random_page: 18,
 };
 
 function paramsFor(tool: string, caseFromCorpus: CorpusCase | undefined): Record<string, unknown> {
@@ -205,6 +207,9 @@ describeLive('nightly live gate — Phase 1 Group A (M1–M4)', () => {
     expect(report.m3.p95R).toBeLessThanOrEqual(STANDARD_LIVE_CONFIG.budgets.R);
     expect(report.m3.p95A).toBeLessThanOrEqual(STANDARD_LIVE_CONFIG.budgets.A);
     expect(report.m3.p95Global).toBeLessThan(STANDARD_LIVE_CONFIG.budgets.global);
+    expect(report.m3.samplesR, 'Class R must meet minSamplesPerClass').toBeGreaterThanOrEqual(STANDARD_LIVE_CONFIG.minSamplesPerClass);
+    expect(report.m3.samplesA, 'Class A must meet minSamplesPerClass').toBeGreaterThanOrEqual(STANDARD_LIVE_CONFIG.minSamplesPerClass);
+    expect(report.m3.pass).toBe(true);
     expect(report.overallPass).toBe(true);
   }, 400000);
 });

@@ -1,16 +1,20 @@
-import { McpServer, SUPPORTED_PROTOCOL_VERSIONS, type McpServerOptions } from '@modelcontextprotocol/server';
+import { McpServer, SUPPORTED_PROTOCOL_VERSIONS, type McpServerOptions, type StandardSchemaWithJSON } from '@modelcontextprotocol/server';
 import type { Config } from '../../config.js';
 import type { WikimediaClient } from '../../upstream/client.js';
 import { SERVER_INSTRUCTIONS } from '../instructions.js';
 import { DISCOVERY } from '../discover.js';
 import { cacheHints } from '../../protocol/caching.js';
 import { createHandlers } from './handlers.js';
-import { IDEMPOTENT_TOOLS, TOOL_DESCRIPTIONS, TOOL_SCHEMAS } from './schemas.js';
+import { IDEMPOTENT_TOOLS, PHASE1_TOOL_NAMES, TOOL_DESCRIPTIONS, TOOL_SCHEMAS } from './schemas.js';
 import { registerMinimalResources } from '../resources/index.js';
 import { registerMinimalPrompts } from '../prompts/index.js';
+import { GROUP_B_DESCRIPTIONS, GROUP_B_TOOL_NAMES, buildGroupBSchemas } from '../../wikidata/schemas.js';
 
-/** Static, integrity-checked tool catalogue (SR-12): nine named tools only. */
-export const TOOL_NAMES = Object.keys(TOOL_SCHEMAS) as Array<keyof typeof TOOL_SCHEMAS>;
+/**
+ * Static, integrity-checked tool catalogue (SR-12): nine Phase 1 tools plus
+ * the six frozen Phase 2 Group B tools. No write/Enterprise tool is registered.
+ */
+export const TOOL_NAMES: readonly string[] = [...PHASE1_TOOL_NAMES, ...GROUP_B_TOOL_NAMES];
 
 /**
  * Extract the inbound cancellation signal from the SDK tool-handler context.
@@ -50,20 +54,35 @@ export function buildMcpServer(config: Config, client: WikimediaClient): McpServ
   const server = new McpServer({ name: DISCOVERY.serverInfo.name, version: DISCOVERY.serverInfo.version }, options);
 
   const handlers = createHandlers(client, config);
+  const groupSchemas = buildGroupBSchemas(config);
+  const descriptions: Record<string, string> = { ...TOOL_DESCRIPTIONS, ...GROUP_B_DESCRIPTIONS };
+  const schemas: Record<string, StandardSchemaWithJSON> = {
+    ...(TOOL_SCHEMAS as unknown as Record<string, StandardSchemaWithJSON>),
+    ...(groupSchemas as unknown as Record<string, StandardSchemaWithJSON>),
+  };
   for (const name of TOOL_NAMES) {
+    const schema = schemas[name];
+    const handler = handlers[name as keyof typeof handlers];
+    const description = descriptions[name];
+    if (schema === undefined || handler === undefined || description === undefined) continue;
     server.registerTool(
       name,
       {
-        description: TOOL_DESCRIPTIONS[name],
-        inputSchema: TOOL_SCHEMAS[name],
+        description,
+        inputSchema: schema,
         annotations: {
           readOnlyHint: true,
           destructiveHint: false,
           openWorldHint: true,
-          idempotentHint: IDEMPOTENT_TOOLS.has(name),
+          idempotentHint: GROUP_B_TOOL_NAMES.includes(name as typeof GROUP_B_TOOL_NAMES[number])
+            || IDEMPOTENT_TOOLS.has(name),
         },
       },
-      async (args: Record<string, unknown>, ctx: unknown) => handlers[name](args, signalFromContext(ctx)),
+      async (args: unknown, ctx) => handler(
+        args !== null && typeof args === 'object' && !Array.isArray(args)
+          ? args as Record<string, unknown> : {},
+        signalFromContext(ctx),
+      ),
     );
   }
 

@@ -12,6 +12,7 @@ import {
   licenseFromExtMetadata, stripHtml, withListProvenance, withProvenance,
 } from '../../attribution/assemble.js';
 import type { ToolResponse, ToolPayload } from '../../types.js';
+import { createWikidataHandlers } from '../../wikidata/handlers.js';
 import {
   searchSchema, getSummarySchema, getPageSchema, getSectionsSchema, getRelatedPagesSchema,
   getMediaSchema, getLanguagesSchema, getRandomPageSchema, getFeedSchema, isValidFeedDate,
@@ -95,7 +96,11 @@ function requireOk(status: number, target: ResolveResult, title: string, backend
  * through the shared client, enriched with provenance, and capped by
  * MAX_RESULT_BYTES. `signal` is the inbound cancellation signal (H2).
  */
-export function createHandlers(client: WikimediaClient, config: Config) {
+export function createHandlers(
+  client: WikimediaClient,
+  config: Config,
+  options: { sleep?: (ms: number) => Promise<void>; now?: () => number } = {},
+) {
   async function run<TInput, TOutput>(
     name: string,
     schema: ZodType<TInput>,
@@ -213,7 +218,7 @@ export function createHandlers(client: WikimediaClient, config: Config) {
     });
   }
 
-  return {
+  const phase1Handlers = {
     async search(raw: Record<string, unknown>, signal?: AbortSignal): Promise<ToolResponse> {
       return run<SearchInput, ToolPayload>('search', searchSchema, raw, async (input, target, childSignal) => {
         const url = actionUrl(target, {
@@ -545,6 +550,10 @@ export function createHandlers(client: WikimediaClient, config: Config) {
       }, signal);
     },
   };
+
+  // Phase 2 adds six read-only Group B tools; Phase 1 names/schemas/errors are
+  // untouched (AC-35). Neither group registers any write capability.
+  return { ...phase1Handlers, ...createWikidataHandlers(client, config, options) };
 }
 
 function readMetadata(metadata: Record<string, unknown>, key: string): string {

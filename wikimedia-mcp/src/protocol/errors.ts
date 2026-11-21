@@ -22,6 +22,18 @@ const DEFAULT_ACTIONS: Partial<Record<ToolErrorCode, string>> = {
   invalid_section: 'Call get_sections without a section argument to list valid section indices.',
   unsupported_project: 'Use a supported project name or Wikimedia project code.',
   host_not_allowed: 'Do not supply host/api_url parameters; hosts are fixed by the server allowlist.',
+  // Phase 2 (Group B) — every terminal code has an actionable next step (AC-24/M6).
+  invalid_qid: 'Use a QID matching ^Q[1-9][0-9]{0,9}$; call wikidata_search_entities to find one.',
+  invalid_property: 'Use a PID matching ^P[1-9][0-9]{0,9}$.',
+  invalid_site: 'Use an allowlisted Wikimedia site code such as enwiki, dewiki or commonswiki.',
+  invalid_external_id: 'Check the identifier format for the chosen scheme and retry.',
+  unsupported_scheme: 'Use one of: doi, pmid, orcid, openalex, imdb.',
+  entity_not_found: 'Check the QID, or call wikidata_search_entities to find one.',
+  external_id_not_found: 'Check the identifier and scheme, or call wikidata_search_entities instead.',
+  invalid_query: 'Use a single portable SPARQL 1.1 SELECT with only the wikibase:label service.',
+  query_limit_required: 'Supply a positive inline LIMIT or a positive `limit` argument.',
+  query_too_complex: 'Simplify the query: fewer UNION/OPTIONAL/property paths, or a shorter query.',
+  query_timeout: 'Simplify the query, add a LIMIT, or raise timeout_ms (maximum 60000).',
 };
 
 export type ToolErrorOptions = {
@@ -30,6 +42,7 @@ export type ToolErrorOptions = {
   hint?: string | null;
   details?: Record<string, unknown>;
   action?: string;
+  limits?: Record<string, unknown>;
 };
 
 export function toolError(
@@ -46,6 +59,7 @@ export function toolError(
     hint: options.hint ?? null,
     action,
     details: options.details ?? {},
+    ...(options.limits === undefined ? {} : { limits: options.limits }),
   };
 }
 

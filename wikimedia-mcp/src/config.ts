@@ -102,6 +102,19 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   if (raw.RETRY_BACKOFF_MAX_MS < raw.RETRY_BACKOFF_BASE_MS) {
     throw new Error('RETRY_BACKOFF_MAX_MS must be >= RETRY_BACKOFF_BASE_MS');
   }
+  // Phase 2 §3.5 / §4.7: every SPARQL endpoint in the fallback chain must be
+  // https (SR-3 SSRF defence). Reject at boot, never at request time.
+  const sparqlUrls: Array<{ name: string; value: string }> = [
+    { name: 'WIKIDATA_SPARQL_ENDPOINT', value: raw.WIKIDATA_SPARQL_ENDPOINT },
+    { name: 'WIKIDATA_SPARQL_ENDPOINT_V2', value: raw.WIKIDATA_SPARQL_ENDPOINT_V2 },
+    ...raw.WIKIDATA_SPARQL_FALLBACKS.split(',').map((value, index) =>
+      ({ name: `WIKIDATA_SPARQL_FALLBACKS[${index}]`, value: value.trim() })),
+  ];
+  for (const entry of sparqlUrls) {
+    if (!entry.value.toLowerCase().startsWith('https://')) {
+      throw new Error(`${entry.name} must be an https: URL`);
+    }
+  }
 
   return {
     userAgent: raw.USER_AGENT,

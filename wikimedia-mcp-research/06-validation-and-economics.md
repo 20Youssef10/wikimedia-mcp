@@ -240,6 +240,44 @@ All examples use the public read-only endpoint `https://enterprise.wikimedia.com
 
 Key integration risks: the POST-only endpoint (clients that probe with GET fail), transport-key differences (`httpUrl`, `streamableHttp`, `type:"http"`), and VS Code's documented config migration. Sources: each host's official MCP documentation, `https://enterprise.wikimedia.com/docs/agents/` and `https://registry.modelcontextprotocol.io/`, all fetched live on 21 Nov 2026. Two stale URLs found and excluded: `docs.x.ai/developers/grok-build/mcp` and `help.openai.com/en/articles/11381631-connectors`.
 
+### 7.1 Verified host compatibility against the Phase 1 server (21 November 2026)
+
+The server targets **MCP 2026-07-28 only** (contract 09 §2.5); classic `initialize`/2024–2025 hosts are unsupported by design. Real host→server HTTP attempts were made with isolated configs; no global config was modified.
+
+| Host | Test type | Result | Evidence / caveat |
+|------|-----------|--------|-------------------|
+| **Grok Build** | REAL | **PASS** | `grok mcp doctor` → handshake `protocol 2026-07-28`, 9 tools discovered, healthy. Docs: `docs.x.ai/build/features/mcp-servers`. |
+| **OpenCode** | REAL | **PASS with required `protocol` key** | Default config uses legacy `initialize` and is rejected. With `"protocol":"2026-07-28"`, serve log: `mcp connected server=wikimedia tools=9`. `opencode mcp list` is unreliable (reported no servers while connected) — use `opencode serve --print-logs --log-level info` and grep for `mcp connected`. |
+| **Cursor (`cursor-agent`)** | REAL | **FAIL — host limitation** | Config per live docs, but the CLI selects legacy SSE for a plain `url` and probes with GET → server correctly returns 405. `type:"http"` did not help; `type:"streamable-http"` is unrecognised. Keep the POST-only posture; document as incompatible until the host detects Streamable HTTP. |
+| **Codex CLI** | REAL (connection attempt via server logs) | **FAIL — host limitation** | Config parsed correctly as `streamable_http`, but the client opens with classic `2025-06-18` `initialize`, rejected with `-32022`. No option to request 2026-07-28. `codex mcp list` is config-only. |
+| **Cline** | Config REAL; connection NOT TESTED | **NOT TESTED** | CLI registers `transport:{type:"streamableHttp",url}` correctly, but the isolated profile has no account; auth failed before any MCP connection. Live docs show a flat `type` field — both forms should be documented. |
+| **Gemini CLI, Claude Code, Windsurf** | — | NOT TESTED | CLIs absent from the environment; matrix entries above remain doc-only. |
+
+**Verified working snippets (against the built Phase 1 server):**
+
+```jsonc
+// OpenCode — opencode.json (the protocol key is MANDATORY)
+{"mcp":{"servers":{"wikimedia":{
+  "type":"remote",
+  "url":"http://127.0.0.1:39118/mcp",
+  "protocol":"2026-07-28"
+}}}}
+```
+```toml
+# Grok — ~/.grok/config.toml
+[mcp_servers.wikimedia]
+url = "http://127.0.0.1:39118/mcp"
+enabled = true
+```
+```bash
+grok mcp add --transport http wikimedia http://127.0.0.1:39118/mcp
+grok mcp doctor wikimedia --json
+```
+
+A raw modern request also succeeds: POST with `MCP-Protocol-Version: 2026-07-28`, `Mcp-Method: tools/list`, and a `_meta` envelope containing `io.modelcontextprotocol/protocolVersion` + `io.modelcontextprotocol/clientCapabilities` → HTTP 200 with the tool catalogue.
+
+**Known limitations to document in downstream READMEs:** (a) classic-`initialize` hosts are unsupported; (b) GET→405 is deliberate and breaks legacy SSE probing; (c) a classic `initialize` that names a modern version produces a misleading `-32022` message ("Unsupported protocol version: 2026-07-28" while listing it as supported) — actionable guidance should be added upstream; (d) Cline CLI writes a nested `transport` object while docs show a flat `type`.
+
 ---
 
 ## 8. Sources

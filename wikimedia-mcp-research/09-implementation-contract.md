@@ -429,15 +429,15 @@ Output: `{kind, event_type, date, items:[...], truncated, ...provenance}`. Empty
 |---|---|---|---|
 | `get_summary` | 20% | 60 | R (REST) |
 | `search` | 15% | 45 | A (Action) |
-| `get_feed` | 13% | 39 | R |
-| `get_page` | 12% | 36 | A |
+| `get_feed` | ~13.3% | 40 | R |
+| `get_page` | ~11.7% | 35 | A |
 | `get_sections` | 10% | 30 | A |
-| `get_related_pages` | 8% | 24 | R |
-| `get_languages` | 8% | 24 | R |
-| `get_media` | 8% | 24 | A |
+| `get_related_pages` | ~8.3% | 25 | R |
+| `get_languages` | ~8.3% | 25 | R |
+| `get_media` | ~7.3% | 22 | A |
 | `get_random_page` | 6% | 18 | A |
 
-Class R pool = 147 samples; Class A pool = 153. Warm-up uses the same proportional mix.
+**Corrected 2026-11-21:** the original mix produced Class R = 147 samples, below the §4.5 requirement of ≥150 per class, making `overallPass` mathematically unachievable. The mix now yields **Class R = 150, Class A = 150**. Warm-up uses the same proportional mix.
 
 ### 4.3 Measurement and latency budgets
 
@@ -563,6 +563,7 @@ Built at `../wikimedia-mcp/`. Evidence in that project's `SDK-VERIFICATION.md` a
 | Independent Streamable HTTP QA | **10/10** — 405+`Allow: POST`, `-32020` header validation, `-32022`/HTTP 400, nine tools, live `tools/call` |
 | Independent defect QA (post-review) | **9/9** — missing-page errors for all four Action-backed tools, hyphenated/variant language codes, impossible/future feed dates |
 | Principal-code-review gate | REQUEST_CHANGES → all six blocking findings (H1–H4, M1–M2) plus M3/M5/M7 fixed and re-verified |
+| Nightly live gate (final run, off-peak) | **PASS** — 330 live calls, all nine tools 100%, M1=1.0, M2 pass, M3 budgets pass (R≤1.0 s, A≤1.5 s, global <2 s), M4=0 429s, M5=1, M6=1, `overallPass=true` |
 
 **Post-review fixes:** Action API `missing`/`error` bodies now map to `page_not_found` for all four Action-backed tools; request `AbortSignal` is threaded from the SDK tool context into every upstream fetch; the nightly live runner is real (330-call profile, M1–M4 computation, token bucket, p95 budgets) with its metric logic fixture-tested; structured log fields are deeply redacted before serialisation; feed dates use strict calendar round-trip and reject future dates; language codes accept hyphenated variants with a documented variant→base-host map (`zh-hans`→`zh`, `pt-br`→`pt`, while `be-tarask`/`zh-min-nan` keep real hosts), and network failures map to `upstream_unavailable` with the failed host named instead of `internal_error`. `MAX_RESULT_BYTES` is enforced centrally; `get_media` re-throws 429/5xx/abort faults; per-file licences never fall back to the site-wide CC BY-SA URL.
 

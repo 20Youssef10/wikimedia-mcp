@@ -14,6 +14,8 @@ export type UpstreamResponse = {
   json: unknown;
   text: string;
   retryAfterMs: number | null;
+  /** Response headers (ETag / Last-Modified feed Phase 2 Wikibase provenance). */
+  headers: Record<string, string>;
 };
 
 type CacheEntry = { value: unknown; expiresAt: number };
@@ -84,9 +86,53 @@ export class WikimediaClient {
     };
   }
 
+  /**
+   * Run a task under the single global concurrency semaphore. Group B's WDQS
+   * semaphore is nested inside this one, keeping global outbound ≤ 3 (AC-26).
+   */
+  async outbound<T>(task: () => Promise<T>): Promise<T> {
+    return this.limiter.run(task);
+  }
+
+  /**
+   * Raw GET with the shared User-Agent and dispatcher, but without retries or
+   * JSON parsing. Used by the SPARQL pipeline, which implements its own
+   * endpoint-chain / 429 / 503 policy (§4.7) and must see raw status codes.
+   */
+  async rawRequest(
+    url: string,
+    options: {
+      headers?: Record<string, string>;
+      signal?: AbortSignal;
+      redirect?: 'follow' | 'error' | 'manual';
+    } = {},
+  ): Promise<{ status: number; text: string; headers: Record<string, string> }> {
+    let response: Response;
+    try {
+      const init: Omit<RequestInit, 'dispatcher'> & { dispatcher?: unknown } = {
+        method: 'GET',
+        headers: this.headers(options.headers ?? {}),
+        redirect: options.redirect ?? 'manual',
+      };
+      if (this.useDispatcher) init.dispatcher = this.dispatcher;
+      if (options.signal !== undefined) init.signal = options.signal;
+      response = await this.fetchImpl(url, init);
+    } catch (error) {
+      if (isNetworkFetchError(error)) {
+        throw new UpstreamError(`Network error contacting ${hostnameOf(url)}`, 0, null, hostnameOf(url));
+      }
+      throw error;
+    }
+    return {
+      status: response.status,
+      text: await response.text(),
+      headers: Object.fromEntries(response.headers.entries()),
+    };
+  }
+
   async getJson(
     url: string,
-    options: { signal?: AbortSignal; backend?: string; accept?: string } = {},
+    options: { signal?: AbortSignal; backend?: string; accept?: string; headers?: Record<string, string> } = {},
   ): Promise<UpstreamResponse> {
     const outcome = await withRetry(
       async () => {
@@ -95,7 +141,10 @@ export class WikimediaClient {
           response = await this.limiter.run(() => {
             const init: Omit<RequestInit, 'dispatcher'> & { dispatcher?: unknown } = {
               method: 'GET',
-              headers: this.headers(options.accept === undefined ? {} : { Accept: options.accept }),
+              headers: this.headers({
+                ...(options.headers ?? {}),
+                ...(options.accept === undefined ? {} : { Accept: options.accept }),
+              }),
             };
             if (this.useDispatcher) init.dispatcher = this.dispatcher;
             if (options.signal !== undefined) init.signal = options.signal;
@@ -124,7 +173,13 @@ export class WikimediaClient {
         } catch {
           if (response.ok) parsed = null;
         }
-        return { status: response.status, json: parsed, text, retryAfterMs };
+        return {
+          status: response.status,
+          json: parsed,
+          text,
+          retryAfterMs,
+          headers: Object.fromEntries(response.headers.entries()),
+        };
       },
       {
         maxAttempts: this.config.retryMaxAttempts,

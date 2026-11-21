@@ -114,6 +114,9 @@ export const TOOL_SCHEMAS = {
   get_feed: getFeedSchema,
 } as const;
 
+/** Frozen Phase 1 names — kept stable for the AC-01…AC-32 regression gate. */
+export const PHASE1_TOOL_NAMES = Object.keys(TOOL_SCHEMAS) as Array<keyof typeof TOOL_SCHEMAS>;
+
 export const TOOL_DESCRIPTIONS = {
   search: 'Full-text search across wiki pages, returning titles, snippets and page IDs. Empty search is a successful result with total_hits 0.',
   get_summary: 'Concise lead-section summary and thumbnail for one page. Prefer this after search, before get_page.',
