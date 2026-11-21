@@ -5,6 +5,10 @@ import {
   type LiveGateReport,
   type Observation,
 } from './live-gate.js';
+import {
+  derivePolitenessFromObservations,
+  type PolitenessSnapshot,
+} from './politeness.js';
 
 /**
  * Durable, machine-readable evidence for every nightly live-gate run
@@ -29,6 +33,8 @@ export type NightlyReport = LiveGateReport & {
   per_tool_p95_ms: Record<string, number>;
   /** Explicit alias of m4.count429 for consumers that want a flat field. */
   m4_429_count: number;
+  /** WP16 additive politeness telemetry (counts/ratios only). */
+  politeness: PolitenessSnapshot;
   failures: ReportFailure[];
 };
 
@@ -38,6 +44,12 @@ export type BuildNightlyReportInput = {
   peakConcurrency: number;
   failures?: readonly ReportFailure[];
   now?: () => number;
+  /**
+   * Optional in-process client telemetry. When omitted the block is derived
+   * from the gate observations, keeping the nightly runner (which builds the
+   * report in a different process from the server) fully backward compatible.
+   */
+  politeness?: PolitenessSnapshot;
 };
 
 /** Pure builder: turn gate observations + metrics into a serialisable report. */
@@ -78,6 +90,7 @@ export function buildNightlyReport(input: BuildNightlyReportInput): NightlyRepor
     m5: metrics.m5,
     m6: metrics.m6,
     m4_429_count: metrics.m4.count429,
+    politeness: input.politeness ?? derivePolitenessFromObservations(observations),
     overallPass: metrics.overallPass,
     failures: (input.failures ?? []).map((failure) => ({ id: failure.id, detail: failure.detail })),
   };

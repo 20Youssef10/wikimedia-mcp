@@ -18,6 +18,7 @@
     "gate:status": "node scripts/gate-status.mjs",
     "wmcp": "node scripts/wmcp.mjs",
     "rollback:harness": "node scripts/rollback-harness.mjs",
+    "docs:tools": "node scripts/gen-tool-reference.mjs",
     "start": "tsx src/index.ts",
     "smoke": "tsx scripts/smoke.ts",
     "lint": "eslint ."

@@ -1,8 +1,10 @@
+import { createHash } from 'node:crypto';
 import { Agent, fetch as undiciFetch } from 'undici';
 import type { Config } from '../config.js';
 import { ConcurrencyLimiter } from './limiter.js';
-import { UpstreamError, parseRetryAfter, withRetry } from './retry.js';
+import { UpstreamError, parseRetryAfter, withRetry, type RetryOutcome } from './retry.js';
 import { isRecord } from '../protocol/meta.js';
+import { PolitenessTelemetry, type PolitenessSnapshot } from '../observability/politeness.js';
 
 export type FetchLike = (
   url: string,
@@ -19,6 +21,40 @@ export type UpstreamResponse = {
 };
 
 type CacheEntry = { value: unknown; expiresAt: number };
+
+/**
+ * Upper bound on how long a coalesced waiter may wait on a shared upstream
+ * call. Bounded waits prevent a stalled leader from hanging every caller.
+ * This is an internal constant — no new configuration key (WP18).
+ */
+export const COALESCE_MAX_WAIT_MS = 10_000;
+
+/**
+ * Build the deduplication key for an in-flight read. The URL distinguishes
+ * lang/project scopes; all header values (including any credential) are
+ * reduced to a one-way digest so no raw token ever appears in the key.
+ * Distinct credentials therefore produce distinct keys and never coalesce.
+ */
+export function buildCoalesceKey(
+  url: string,
+  accept?: string,
+  headers?: Record<string, string>,
+): string {
+  const canonical = headers === undefined
+    ? ''
+    : Object.entries(headers)
+      .sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
+      .map(([name, value]) => `${name.toLowerCase()}=${value}`)
+      .join('\n');
+  // SHA-256 avoids any cross-tenant key collision while keeping credentials
+  // one-way: the raw header values never appear in the returned key.
+  const digest = createHash('sha256')
+    .update(canonical)
+    .update('\u0000')
+    .update(accept ?? '')
+    .digest('hex');
+  return `${url}\u0000${digest}`;
+}
 
 function hostnameOf(url: string): string {
   try { return new URL(url).hostname; } catch { return 'unknown host'; }
@@ -43,15 +79,39 @@ function isNetworkFetchError(error: unknown): boolean {
     .test(errorDetail(error));
 }
 
+function abortError(signal: AbortSignal): Error {
+  const reason: unknown = signal.reason;
+  return reason instanceof Error ? reason : Object.assign(new Error('The upstream request was aborted'), { name: 'AbortError' });
+}
+
+type UpstreamOutcome = RetryOutcome<UpstreamResponse>;
+
+type InFlightEntry = {
+  promise: Promise<UpstreamOutcome>;
+  resolve: (value: UpstreamOutcome) => void;
+  reject: (error: unknown) => void;
+  controller: AbortController;
+  activeWaiters: number;
+  joinedWaiters: number;
+  /** While true the leader's abort propagates to the shared fetch. */
+  propagate: boolean;
+  leaderSignal: AbortSignal | undefined;
+  leaderListener: (() => void) | undefined;
+};
+
 /**
  * Shared outbound client. Uses an undici `Agent` for deterministic connection
  * limits and timeouts, a global p-limit(3) semaphore, a contactable User-Agent
- * on every call, bounded jittered retries and an in-memory metadata cache.
+ * on every call, bounded jittered retries, an in-memory metadata cache and
+ * (WP18) in-flight request coalescing for identical reads.
  */
 export class WikimediaClient {
   readonly limiter: ConcurrencyLimiter;
+  /** WP16/17/18 — per-client counters, isolated from other tenants/tests. */
+  readonly politeness = new PolitenessTelemetry();
   private readonly dispatcher: Agent;
   private readonly cache = new Map<string, CacheEntry>();
+  private readonly inFlight = new Map<string, InFlightEntry>();
   private readonly fetchImpl: FetchLike;
   private readonly useDispatcher: boolean;
 
@@ -77,6 +137,12 @@ export class WikimediaClient {
   /** Number of upstream calls observed with status 429 (M4 instrumentation). */
   private total429 = 0;
   get rateLimitedCount(): number { return this.total429; }
+
+  /** Snapshot of the additive politeness telemetry (counts/ratios only). */
+  get politenessSnapshot(): PolitenessSnapshot { return this.politeness.snapshot(); }
+
+  /** Number of in-flight shared reads currently being coalesced. */
+  get inFlightCount(): number { return this.inFlight.size; }
 
   private headers(extra?: Record<string, string>): Record<string, string> {
     return {
@@ -105,6 +171,7 @@ export class WikimediaClient {
       headers?: Record<string, string>;
       signal?: AbortSignal;
       redirect?: 'follow' | 'error' | 'manual';
+      backend?: string;
     } = {},
   ): Promise<{ status: number; text: string; headers: Record<string, string> }> {
     let response: Response;
@@ -123,6 +190,7 @@ export class WikimediaClient {
       }
       throw error;
     }
+    this.politeness.recordUpstreamCall(options.backend ?? 'raw', response.status);
     return {
       status: response.status,
       text: await response.text(),
@@ -130,11 +198,116 @@ export class WikimediaClient {
     };
   }
 
+  /**
+   * Wait on a shared upstream outcome. A caller's signal only rejects that
+   * caller; the shared call is cancelled only when the final active waiter
+   * aborts. Waits are bounded so a stalled leader cannot hang other callers.
+   */
+  private waitForMember(entry: InFlightEntry, signal: AbortSignal | undefined): Promise<UpstreamOutcome> {
+    const decrement = (): void => { entry.activeWaiters -= 1; };
+    if (signal === undefined) return entry.promise.finally(decrement);
+    if (signal.aborted) {
+      decrement();
+      return Promise.reject(abortError(signal));
+    }
+    return new Promise<UpstreamOutcome>((resolve, reject) => {
+      let settled = false;
+      const cleanup = (): void => {
+        if (settled) return;
+        settled = true;
+        signal.removeEventListener('abort', onAbort);
+        clearTimeout(timer);
+        decrement();
+      };
+      const onAbort = (): void => {
+        if (settled) return;
+        const wasLast = entry.activeWaiters <= 1;
+        cleanup();
+        if (wasLast) entry.controller.abort(signal.reason);
+        reject(abortError(signal));
+      };
+      const timer = setTimeout(() => {
+        if (settled) return;
+        cleanup();
+        reject(new Error('coalesced upstream wait exceeded its bounded window'));
+      }, COALESCE_MAX_WAIT_MS);
+      signal.addEventListener('abort', onAbort, { once: true });
+      entry.promise.then(
+        (value) => { if (!settled) { cleanup(); resolve(value); } },
+        (error: unknown) => { if (!settled) { cleanup(); reject(error); } },
+      );
+    });
+  }
+
+  /** Join or create a shared upstream read. */
+  private coalesceGetJson(
+    key: string | undefined,
+    callerSignal: AbortSignal | undefined,
+    run: (signal: AbortSignal | undefined) => Promise<UpstreamOutcome>,
+  ): Promise<UpstreamOutcome> {
+    if (key === undefined) return run(callerSignal);
+
+    const existing = this.inFlight.get(key);
+    if (existing !== undefined) {
+      existing.activeWaiters += 1;
+      existing.joinedWaiters += 1;
+      // Once a second caller joins, no single caller may cancel the shared read.
+      existing.propagate = false;
+      if (existing.leaderSignal !== undefined && existing.leaderListener !== undefined) {
+        existing.leaderSignal.removeEventListener('abort', existing.leaderListener);
+        existing.leaderListener = undefined;
+      }
+      return this.waitForMember(existing, callerSignal);
+    }
+
+    const controller = new AbortController();
+    let resolve!: (value: UpstreamOutcome) => void;
+    let reject!: (error: unknown) => void;
+    const promise = new Promise<UpstreamOutcome>((res, rej) => { resolve = res; reject = rej; });
+    const entry: InFlightEntry = {
+      promise, resolve, reject, controller,
+      activeWaiters: 1, joinedWaiters: 0, propagate: true,
+      leaderSignal: callerSignal, leaderListener: undefined,
+    };
+    const leaderSignal = callerSignal;
+    if (leaderSignal !== undefined) {
+      const listener = (): void => { if (entry.propagate) entry.controller.abort(leaderSignal.reason); };
+      entry.leaderListener = listener;
+      leaderSignal.addEventListener('abort', listener, { once: true });
+    }
+    this.inFlight.set(key, entry);
+    void (async () => {
+      try {
+        entry.resolve(await run(controller.signal));
+      } catch (error) {
+        entry.reject(error);
+      } finally {
+        if (this.inFlight.get(key) === entry) this.inFlight.delete(key);
+        if (entry.leaderSignal !== undefined && entry.leaderListener !== undefined) {
+          entry.leaderSignal.removeEventListener('abort', entry.leaderListener);
+        }
+        if (entry.joinedWaiters > 0) this.politeness.recordCoalescing(entry.joinedWaiters);
+        // Avoid an unhandled rejection if every waiter aborted.
+        promise.catch(() => {});
+      }
+    })();
+    return this.waitForMember(entry, callerSignal);
+  }
+
   async getJson(
     url: string,
-    options: { signal?: AbortSignal; backend?: string; accept?: string; headers?: Record<string, string> } = {},
+    options: {
+      signal?: AbortSignal;
+      backend?: string;
+      accept?: string;
+      headers?: Record<string, string>;
+      /** Set false to opt a specific call out of in-flight coalescing. */
+      coalesce?: boolean;
+    } = {},
   ): Promise<UpstreamResponse> {
-    const outcome = await withRetry(
+    const label = options.backend ?? 'upstream';
+    const key = options.coalesce === false ? undefined : buildCoalesceKey(url, options.accept, options.headers);
+    const outcome = await this.coalesceGetJson(key, options.signal, async (runSignal) => withRetry(
       async () => {
         let response: Response;
         try {
@@ -147,7 +320,7 @@ export class WikimediaClient {
               }),
             };
             if (this.useDispatcher) init.dispatcher = this.dispatcher;
-            if (options.signal !== undefined) init.signal = options.signal;
+            if (runSignal !== undefined) init.signal = runSignal;
             return this.fetchImpl(url, init);
           });
         } catch (error) {
@@ -160,11 +333,14 @@ export class WikimediaClient {
 
         const retryAfterMs = parseRetryAfter(response.headers.get('retry-after'), this.config.retryAfterFallbackMs);
         const text = await response.text();
+        this.politeness.recordUpstreamCall(label, response.status, retryAfterMs);
         if (response.status === 429) {
           this.total429 += 1;
+          if (this.limiter.reduce('429')) this.politeness.recordConcurrencyReduction();
           throw new UpstreamError(`Upstream returned 429 from ${options.backend ?? 'upstream'}`, 429, retryAfterMs);
         }
         if (response.status >= 500) {
+          if (response.status === 503 && this.limiter.reduce('503')) this.politeness.recordConcurrencyReduction();
           throw new UpstreamError(`Upstream ${response.status} from ${options.backend ?? 'upstream'}`, response.status);
         }
         let parsed: unknown = null;
@@ -187,7 +363,7 @@ export class WikimediaClient {
         maxMs: this.config.retryBackoffMaxMs,
         retryAfterFallbackMs: this.config.retryAfterFallbackMs,
       },
-    );
+    ));
     return outcome.value;
   }
 
@@ -195,7 +371,11 @@ export class WikimediaClient {
   async cached<T>(key: string, loader: () => Promise<T>, ttlMs = this.config.metadataCacheTtlMs): Promise<T> {
     const now = Date.now();
     const entry = this.cache.get(key);
-    if (entry !== undefined && entry.expiresAt > now) return entry.value as T;
+    if (entry !== undefined && entry.expiresAt > now) {
+      this.politeness.recordCacheHit();
+      return entry.value as T;
+    }
+    this.politeness.recordCacheMiss();
     const value = await loader();
     this.cache.set(key, { value, expiresAt: now + ttlMs });
     return value;

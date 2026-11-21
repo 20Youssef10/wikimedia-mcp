@@ -73,3 +73,84 @@ describe('retry and politeness mechanisms (AC-26/AC-27)', () => {
     expect(limiter.activeCount).toBe(0);
   });
 });
+
+describe('WP17 — adaptive concurrency (temporary reduction, never above 3)', () => {
+  it('reduces on 429/503, floors at 1 and recovers to the configured ceiling', () => {
+    let now = 1000;
+    const limiter = new ConcurrencyLimiter(3, { clock: () => now, cooldownMs: 100 });
+    expect(limiter.ceiling).toBe(3);
+    expect(limiter.effectiveCeiling).toBe(3);
+    expect(limiter.isReduced).toBe(false);
+
+    expect(limiter.reduce('429')).toBe(true);
+    expect(limiter.effectiveCeiling).toBe(2);
+    expect(limiter.isReduced).toBe(true);
+    expect(limiter.lastReductionReason).toBe('429');
+    expect(limiter.reductionCount).toBe(1);
+    expect(limiter.cooldownRemainingMs).toBe(100);
+
+    expect(limiter.reduce('503')).toBe(true);
+    expect(limiter.effectiveCeiling).toBe(1);
+    expect(limiter.reduce('429')).toBe(false);
+    expect(limiter.effectiveCeiling).toBe(1);
+    expect(limiter.reductionCount).toBe(2);
+
+    now += 99;
+    limiter.recoverIfDue();
+    expect(limiter.effectiveCeiling).toBe(1);
+    now += 1;
+    limiter.recoverIfDue();
+    expect(limiter.effectiveCeiling).toBe(3);
+    expect(limiter.isReduced).toBe(false);
+    expect(limiter.cooldownRemainingMs).toBe(0);
+  });
+
+  it('can never exceed CONCURRENCY_LIMIT, even after repeated reductions/recoveries', () => {
+    let now = 0;
+    const limiter = new ConcurrencyLimiter(3, { clock: () => now, cooldownMs: 10 });
+    for (let cycle = 0; cycle < 5; cycle += 1) {
+      limiter.reduce('429');
+      limiter.reduce('503');
+      expect(limiter.effectiveCeiling).toBeGreaterThanOrEqual(1);
+      expect(limiter.effectiveCeiling).toBeLessThanOrEqual(3);
+      now += 10;
+      limiter.recoverIfDue();
+      expect(limiter.effectiveCeiling).toBe(3);
+    }
+    // A configured ceiling of 1 cannot be reduced further.
+    const single = new ConcurrencyLimiter(1, { clock: () => now, cooldownMs: 10 });
+    expect(single.reduce('429')).toBe(false);
+    expect(single.effectiveCeiling).toBe(1);
+    expect(() => new ConcurrencyLimiter(4)).toThrow(/between 1 and 3/);
+  });
+
+  it('recovers automatically on the next run() after the cooldown elapses', async () => {
+    let now = 0;
+    const limiter = new ConcurrencyLimiter(3, { clock: () => now, cooldownMs: 50 });
+    limiter.reduce('503');
+    expect(limiter.effectiveCeiling).toBe(2);
+    now = 50;
+    await limiter.run(async () => { /* no-op */ });
+    expect(limiter.effectiveCeiling).toBe(3);
+  });
+
+  it('simulation: peak in-flight never breaches 3 while a reduction is active', async () => {
+    const now = 0;
+    const limiter = new ConcurrencyLimiter(3, { clock: () => now, cooldownMs: 1000 });
+    let active = 0;
+    let peak = 0;
+    const jobs = Array.from({ length: 12 }, () => limiter.run(async () => {
+      active += 1;
+      peak = Math.max(peak, active);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+      active -= 1;
+    }));
+    // Backpressure arrives while jobs are queued; the effective ceiling drops.
+    limiter.reduce('429');
+    expect(limiter.effectiveCeiling).toBe(2);
+    await Promise.all(jobs);
+    expect(peak).toBeLessThanOrEqual(3);
+    expect(limiter.peakCount).toBeLessThanOrEqual(3);
+    expect(limiter.reductionCount).toBe(1);
+  });
+});

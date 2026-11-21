@@ -7,11 +7,14 @@ import {
 import {
   buildNightlyReport, writeNightlyReport, type NightlyReport,
 } from '../../src/observability/nightly-report.js';
+import { PolitenessTelemetry, emptyPolitenessSnapshot } from '../../src/observability/politeness.js';
+import { WikimediaClient } from '../../src/upstream/client.js';
+import { testConfig } from '../helpers/test-env.js';
 
 const REQUIRED_KEYS = [
   'schema_version', 'timestamp', 'total', 'warmup', 'measured', 'peak_concurrency',
   'per_tool_success', 'per_tool_p95_ms',
-  'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm4_429_count', 'overallPass', 'failures',
+  'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm4_429_count', 'politeness', 'overallPass', 'failures',
 ] as const;
 
 function observation(tool: string, durationMs: number, overrides: Partial<Observation> = {}): Observation {
@@ -101,5 +104,101 @@ describe('nightly JSON report (fixture-backed, no live network)', () => {
       rmSync(dir, { recursive: true, force: true });
     }
     expect(written).toBeDefined();
+  });
+});
+
+describe('WP16 — politeness telemetry in the nightly report (fixture-backed)', () => {
+  it('emits an additive politeness block derived from observations by default', () => {
+    const observations = healthy();
+    const report = buildNightlyReport({
+      observations,
+      metrics: computeMetrics(observations),
+      peakConcurrency: 3,
+      now: () => Date.parse('2026-11-21T12:00:00Z'),
+    });
+    expect(report.politeness.upstream_calls_total).toBe(300);
+    expect(report.politeness.upstream_calls_by_tool['get_summary']).toBe(150);
+    expect(report.politeness.upstream_calls_by_tool['search']).toBe(150);
+    expect(report.politeness.retry_after.rate_limited).toBe(0);
+    expect(report.politeness.retry_after.proximity_ratio).toBe(0);
+    expect(report.politeness.cache_hit_rate).toBe(0);
+    // Backward compatibility: the pre-existing alert snippet fields are untouched.
+    expect(report.schema_version).toBe(1);
+    expect(report.total).toBe(300);
+    expect(report.measured).toBe(300);
+    expect(report.m4_429_count).toBe(0);
+    expect(report.overallPass).toBe(true);
+    expect(report.failures).toEqual([]);
+  });
+
+  it('keeps an explicit in-process snapshot and stays counts/ratios only', () => {
+    const telemetry = new PolitenessTelemetry();
+    telemetry.recordUpstreamCall('get_summary', 200, 1500);
+    telemetry.recordCacheHit();
+    telemetry.recordCacheMiss();
+    telemetry.recordConcurrencyReduction();
+    telemetry.recordCoalescing(2);
+    const snapshot = telemetry.snapshot();
+    const observations = healthy();
+    const report = buildNightlyReport({
+      observations,
+      metrics: computeMetrics(observations),
+      peakConcurrency: 3,
+      politeness: snapshot,
+      now: () => Date.parse('2026-11-21T12:00:00Z'),
+    });
+    expect(report.politeness).toEqual(snapshot);
+    expect(report.politeness.cache_hit_rate).toBeCloseTo(0.5);
+    expect(report.politeness.retry_after.observed).toBe(1);
+    expect(report.politeness.retry_after.honored).toBe(1);
+    expect(report.politeness.retry_after.max_observed_ms).toBe(1500);
+    expect(report.politeness.concurrency_reductions).toBe(1);
+    expect(report.politeness.coalesced_waiters).toBe(2);
+    // No token, title, raw subject or secret leaks into the exported block.
+    const serialised = JSON.stringify(report.politeness);
+    for (const forbidden of ['Bearer', 'secret', 'Earth', 'getaddrinfo', '127.0.0.1']) {
+      expect(serialised, `politeness leaked ${forbidden}`).not.toContain(forbidden);
+    }
+  });
+
+  it('starts from a stable empty snapshot for a failed/incomplete run', () => {
+    const report = buildNightlyReport({
+      observations: [],
+      metrics: computeMetrics([]),
+      peakConcurrency: 0,
+      failures: [{ id: 'nightly-startup', detail: 'no run' }],
+      politeness: emptyPolitenessSnapshot(),
+    });
+    expect(report.politeness.upstream_calls_total).toBe(0);
+    expect(report.politeness.coalesced_calls).toBe(0);
+    expect(report.failures).toHaveLength(1);
+  });
+
+  it('records per-tool counts, cache hits/misses and Retry-After from a fixture client', async () => {
+    const client = new WikimediaClient(testConfig(), {
+      useDispatcher: false,
+      fetchImpl: async () => new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'Retry-After': '0' },
+      }),
+    });
+    try {
+      await client.cached('fixture-key', () => client.getJson(
+        'https://en.wikipedia.org/api/rest_v1/page/summary/Earth',
+        { backend: 'wikimedia-rest-v1', coalesce: false },
+      ));
+      await client.cached('fixture-key', () => Promise.resolve('from-cache'));
+      const snapshot = client.politenessSnapshot;
+      expect(snapshot.upstream_calls_total).toBe(1);
+      expect(snapshot.upstream_calls_by_tool['wikimedia-rest-v1']).toBe(1);
+      expect(snapshot.cache_hits).toBe(1);
+      expect(snapshot.cache_misses).toBe(1);
+      expect(snapshot.cache_hit_rate).toBeCloseTo(0.5);
+      expect(snapshot.retry_after.observed).toBe(1);
+      expect(snapshot.retry_after.honored).toBe(1);
+      expect(snapshot.retry_after.rate_limited).toBe(0);
+    } finally {
+      client.close();
+    }
   });
 });

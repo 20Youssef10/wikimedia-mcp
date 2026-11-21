@@ -6,6 +6,7 @@ import { WikimediaClient } from '../../src/upstream/client.js';
 import { createHandlers } from '../../src/server/tools/handlers.js';
 import { createMswServer } from '../helpers/msw.js';
 import { testConfig } from '../helpers/test-env.js';
+import { computeMetrics, toolClass, type Observation } from '../../src/observability/live-gate.js';
 
 describe('resilience error mapping (fixture-only)', () => {
   it('maps 429 to retryable rate_limited with actionable recovery', () => {
@@ -131,5 +132,60 @@ describe('H3 / TC-A-014 — 429 then success with Retry-After', () => {
     expect(result.isError).toBeUndefined();
     expect(Date.now() - start).toBeGreaterThanOrEqual(900);
     expect(calls).toBe(2);
+  });
+});
+
+describe('WP17 — upstream backpressure drives a bounded, recoverable reduction', () => {
+  it('a 429 fixture reduces the effective ceiling and records it', async () => {
+    const client = new WikimediaClient(testConfig({ RETRY_MAX_ATTEMPTS: '1', RETRY_AFTER_FALLBACK_MS: '1' }), {
+      useDispatcher: false,
+      fetchImpl: async () => new Response('{}', { status: 429, headers: { 'Retry-After': '0' } }),
+    });
+    try {
+      await expect(client.getJson('https://en.wikipedia.org/w/api.php?action=query', {
+        backend: 'wikimedia-action', coalesce: false,
+      })).rejects.toMatchObject({ status: 429, name: 'UpstreamError' });
+      expect(client.rateLimitedCount).toBe(1);
+      expect(client.limiter.effectiveCeiling).toBe(2);
+      expect(client.limiter.isReduced).toBe(true);
+      expect(client.politenessSnapshot.concurrency_reductions).toBe(1);
+      expect(client.limiter.effectiveCeiling).toBeLessThanOrEqual(3);
+    } finally {
+      client.close();
+    }
+  });
+
+  it('a 503 fixture also reduces the effective ceiling', async () => {
+    const client = new WikimediaClient(testConfig({ RETRY_MAX_ATTEMPTS: '1' }), {
+      useDispatcher: false,
+      fetchImpl: async () => new Response('down', { status: 503 }),
+    });
+    try {
+      await expect(client.getJson('https://en.wikipedia.org/w/api.php?action=query', {
+        backend: 'wikimedia-action', coalesce: false,
+      })).rejects.toMatchObject({ status: 503 });
+      expect(client.limiter.effectiveCeiling).toBe(2);
+      expect(client.politenessSnapshot.concurrency_reductions).toBe(1);
+    } finally {
+      client.close();
+    }
+  });
+
+  it('M4 (zero 429s) semantics are unchanged by the new telemetry', () => {
+    const observation = (upstream429: boolean): Observation => ({
+      id: 'fixture', tool: 'get_summary', toolClass: toolClass('get_summary'),
+      durationMs: 100, ok: !upstream429, singleCall: true, hasProvenance: true,
+      isContent: true, errorActionable: true, upstream429,
+    });
+    const clean = computeMetrics([observation(false), observation(false)]);
+    expect(clean.m4.count429).toBe(0);
+    expect(clean.m4.pass).toBe(true);
+    const dirty = computeMetrics([observation(false), observation(true)]);
+    expect(dirty.m4.count429).toBe(1);
+    expect(dirty.m4.pass).toBe(false);
+    // M4 is derived from gate observations, never from the new client counters;
+    // a clean observation set still passes even though telemetry is recorded.
+    expect(clean.total).toBe(2);
+    expect(clean.measured).toBe(2);
   });
 });

@@ -179,6 +179,25 @@ process.exit(bad ? 2 : 0);'
 
 The report is also human-readable: the `[nightly]` console lines print per-tool success, per-tool p95, M1 rate, M4 429 count, and each failure detail. Keep those lines in the scheduler log.
 
+### Additive `politeness` block (WP16)
+
+`reports/nightly-live.json` now also carries a `politeness` object. It is strictly additive: the alert snippet above and every pre-existing field (`overallPass`, `m4_429_count`, `failures`, `total`, `measured`, `peak_concurrency`) are unchanged. The block contains counts and ratios only — never a token, title, raw subject or secret — so it is safe to archive alongside the report.
+
+| Field | Meaning |
+|---|---|
+| `upstream_calls_by_tool` | Upstream attempts keyed by tool/backend label (counts only). In the spawned nightly runner, derived from the measured call mix. |
+| `upstream_calls_total` | Sum of the above. |
+| `cache_hits`, `cache_misses`, `cache_hit_rate` | Metadata-cache behaviour. `cache_hit_rate` is `hits / (hits + misses)`, or `0` when no lookups were instrumented in that run. |
+| `retry_after.observed` | Responses carrying a `Retry-After` header. |
+| `retry_after.rate_limited` | Responses with HTTP 429. |
+| `retry_after.honored` | Times the configured backoff honoured the advertised `Retry-After` in full. |
+| `retry_after.proximity_ratio` | `rate_limited / upstream_calls_total` — how often the upstream rate-limited us. `0` in a healthy run. |
+| `retry_after.max_observed_ms` | Largest `Retry-After` seen, in milliseconds. |
+| `concurrency_reductions` | Temporary WP17 reductions of the effective concurrency ceiling on 429/503. The ceiling never exceeds `CONCURRENCY_LIMIT` (3) and recovers after a cooldown. |
+| `coalesced_calls`, `coalesced_waiters` | WP18 in-flight read coalescing: number of shared calls and the extra waiters they served (a measurable reduction in upstream calls per session). |
+
+When the report is built by the nightly runner (a separate process from the MCP server), cache/coalescing/reduction counters are `0` because they are not visible across the process boundary — use the fixture suites for per-client instrumentation. The per-tool call counts and 429 proximity are always derived from the gate observations.
+
 ---
 
 ## 6. Alerting policy

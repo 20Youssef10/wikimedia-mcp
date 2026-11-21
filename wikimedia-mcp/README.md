@@ -163,6 +163,10 @@ Adapted from report 06 §7 (see §7.1 for verified host results). For a local
 deployment use the stdio command or `http://127.0.0.1:3000/mcp` in place of the
 hosted URL shown there. Leave OAuth fields empty — no credentials are needed.
 
+For a reproducible snippet, run `npm run wmcp -- config <host>` — it emits the
+documented key and transport for every matrix host and adds OpenCode's mandatory
+`protocol` key (see "Host & developer-experience CLIs" below).
+
 > **Compatibility:** this server speaks **MCP 2026-07-28 only**. Classic
 > `initialize`/2024–2025 hosts are unsupported. Verified working: **Grok Build**
 > and **OpenCode** (OpenCode requires the `protocol` key below). Verified
@@ -387,6 +391,35 @@ npm run rollback:harness -- --project testwiki --tool edit_page --dry-run
   by default). Chain verification is automatic on anchor and export; retention is sink-enforced.
 - The rollback harness is testwiki-only and human-executed. It records the sequence and writes
   an evidence skeleton; it performs no real wiki write. See `handoff/REAL-WIKI-ROLLBACK-PLAN.md`.
+
+## Host & developer-experience CLIs (WP9, WP11)
+
+Two additive, offline commands turn documented configuration and shipped schemas
+into copy-pasteable artefacts. Neither registers an MCP tool, changes
+`serverInfo.version`, nor contacts the network.
+
+```sh
+npm run build
+npm run wmcp -- config --list                   # 12 documented host slugs
+npm run wmcp -- config opencode                 # JSON snippet on stdout; notes on stderr
+npm run wmcp -- config gemini-cli --out gemini.json
+npm run docs:tools                              # regenerate TOOLS.md from shipped schemas
+npm run docs:tools -- --check                   # CI: non-zero if TOOLS.md is stale
+```
+
+- `wmcp config <host>` covers all 11 hosts in report 06 §7 plus OpenCode from
+  §7.1. It emits the documented `mcpServers`/`servers`/`mcp_servers` JSON, TOML
+  or UI steps, with no secret, token or wildcard host/origin. The default URL is
+  the local `http://127.0.0.1:3000/mcp` from the deployment runbook; override it
+  with `--url`. Credential-bearing and wildcard URLs are rejected.
+- OpenCode's snippet always contains `"protocol":"2026-07-28"` — the key its
+  legacy `initialize` default omits, which is the known misconfiguration this
+  generator exists to prevent.
+- `TOOLS.md` is generated from the advertised JSON Schema of every shipped Zod
+  input schema (the same object served in `tools/list`) and the registry's
+  description maps. `tests/unit/tool-reference.test.ts` regenerates in memory
+  and fails CI on any drift, so additive fields from later work packages must
+  be followed by `npm run docs:tools`.
 
 ## Known limitations / deviations
 

@@ -11,6 +11,7 @@ import {
   buildHarnessPlan, HARNESS_LABEL, parseHarnessFlags, writeRollbackEvidence,
   type HarnessPlan,
 } from './rollback-harness.js';
+import { runConfigCli } from './config-generator.js';
 
 /**
  * Unified `wmcp` subcommand dispatcher and thin CLI entries. All commands are
@@ -111,7 +112,8 @@ export function runCli(argv: readonly string[]): number {
   if (group === 'gate' && command === 'status') return runGateStatus(rest);
   if (group === 'gate' && command === 'record') return runGateRecord(rest);
   if (group === 'rollback-harness') return runRollbackCli(rest);
-  console.log('Usage: wmcp gate status [--require-signed] | wmcp gate record ... | wmcp rollback-harness [--dry-run|--execute ...]');
+  if (group === 'config') return runConfigCli(command === undefined ? rest : [command, ...rest]);
+  console.log('Usage: wmcp gate status [--require-signed] | wmcp gate record ... | wmcp rollback-harness [--dry-run|--execute ...] | wmcp config <host> [--url URL] [--out FILE] | wmcp config --list');
   console.log(`Gates: ${GATE_IDS.join(', ')}`);
   return 2;
 }
