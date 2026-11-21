@@ -33,10 +33,12 @@ describe('AC-33 — Group B registration', () => {
       expect(json['type']).toBe('object');
       expect(json['additionalProperties']).toBe(false);
     }
-    // No write, Enterprise, guest or G-group tool is registered.
+    // No write, Enterprise or guest tool is registered (the two Phase 5 Group
+    // G tools are read-only: geo_search, get_tables).
     expect(TOOL_NAMES.some((name) => /edit|upload|delete|enterprise/i.test(name))).toBe(false);
-    // Phase 3 adds five Group C/F tools; the Phase 2 six are unchanged.
-    expect(TOOL_NAMES).toHaveLength(20);
+    // Phase 3 adds five Group C/F tools, Phase 5 adds two Group G tools; the
+    // Phase 2 six are unchanged.
+    expect(TOOL_NAMES).toHaveLength(22);
   });
 
   it('advertises oneOf for resolve_external_id and config-derived SPARQL caps', () => {

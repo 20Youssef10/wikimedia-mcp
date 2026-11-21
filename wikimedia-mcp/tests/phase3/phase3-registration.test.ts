@@ -21,9 +21,9 @@ beforeAll(async () => {
 });
 afterAll(() => stdio?.close());
 
-describe('AC-60 — registration of exactly five Phase 3 tools (20 total)', () => {
-  it('registers 20 tools with no write/Enterprise/D-group names', () => {
-    expect(TOOL_NAMES).toHaveLength(20);
+describe('AC-60 — registration of exactly five Phase 3 tools (22 total after Phase 5)', () => {
+  it('registers 22 tools with no write/Enterprise/D-group names', () => {
+    expect(TOOL_NAMES).toHaveLength(22);
     for (const name of PHASE3_NAMES) expect(TOOL_NAMES).toContain(name);
     expect(TOOL_NAMES).toEqual(expect.arrayContaining([...PHASE1_TOOL_NAMES, ...GROUP_B_TOOL_NAMES]));
     for (const forbidden of ['edit_page', 'upload_file', 'get_recent_changes', 'get_edit_count', 'commons_search']) {
@@ -34,7 +34,7 @@ describe('AC-60 — registration of exactly five Phase 3 tools (20 total)', () =
   it('advertises strict JSON Schemas with non-empty descriptions over stdio tools/list', async () => {
     const listed = await stdio.request('tools/list', {}, 9101);
     const tools = ((listed.body['result'] as Record<string, unknown> | undefined)?.['tools'] as Array<Record<string, unknown>> | undefined) ?? [];
-    expect(tools).toHaveLength(20);
+    expect(tools).toHaveLength(22);
     const phase3 = tools.filter((tool) => PHASE3_NAMES.includes(String(tool['name'])));
     expect(phase3).toHaveLength(5);
     const allSchemas: Record<string, z.ZodType> = { ...GROUP_C_SCHEMAS, ...GROUP_F_SCHEMAS };
@@ -52,7 +52,7 @@ describe('AC-61 — annotations and no x-mcp-header', () => {
   it('all five tools are read-only, non-destructive, open-world and idempotent', async () => {
     const listed = await stdio.request('tools/list', {}, 9102);
     const tools = ((listed.body['result'] as Record<string, unknown> | undefined)?.['tools'] as Array<Record<string, unknown>> | undefined) ?? [];
-    expect(tools).toHaveLength(20);
+    expect(tools).toHaveLength(22);
     for (const tool of tools.filter((item) => PHASE3_NAMES.includes(String(item['name'])))) {
       expect(tool['annotations']).toMatchObject({
         readOnlyHint: true, destructiveHint: false, openWorldHint: true, idempotentHint: true,

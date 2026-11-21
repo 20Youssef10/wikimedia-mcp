@@ -26,6 +26,8 @@ export type Provenance = {
 
 export type ToolErrorCode =
   | 'validation_error'
+  // Phase 5 (Group G) additive code — finite WGS84 coordinate outside bounds.
+  | 'invalid_coordinates'
   | 'invalid_language'
   | 'invalid_project'
   | 'unsupported_project'

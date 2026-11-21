@@ -6,13 +6,23 @@ and the frozen Phase 3 Group C/F contract (`11-phase3-contract.md`, v3.0.0),
 targeting **MCP 2026-07-28** (stateless, `server/discover`, per-request `_meta`,
 routing headers, `resultType`/`ttlMs`/`cacheScope`).
 
-**Twenty read-only tools:** the nine Phase 1 Group A tools (`search`,
+**Server version: `3.0.0`** (`SERVER_VERSION` in `src/protocol/result.ts`,
+advertised as `io.modelcontextprotocol/serverInfo.version` and in the
+`wikimedia://server/info` resource, and mirrored by the package version). The
+major bump from `1.0.0` marks the merge of all three phases into one server,
+whose tool surface grew from 9 (Phase 1) to 20 (Phases 1+2+3) and then to 22
+with the two Phase 5 (Group G) read-only tools. The frozen
+per-contract versions (v1.0.1 / v2.0.0 / v3.0.0 / v5.0.0 for the Phase 5
+subset) and the protocol revision `2026-07-28` are independent and unchanged.
+
+**Twenty-two read-only tools:** the nine Phase 1 Group A tools (`search`,
 `get_summary`, `get_page`, `get_sections`, `get_related_pages`, `get_media`,
 `get_languages`, `get_random_page`, `get_feed`), the six Phase 2 Group B
-(Wikidata) tools and the five Phase 3 tools (three Group C metrics, two Group F
-media) listed below. Both **stdio** and **Streamable HTTP** transports are
-supported. No write tools, no Enterprise APIs, no change notifications
-(`subscriptions/listen` returns `-32601`).
+(Wikidata) tools, the five Phase 3 tools (three Group C metrics, two Group F
+media) and the two Phase 5 tools (`geo_search`, `get_tables`) listed below. Both
+**stdio** and **Streamable HTTP** transports are supported. No write tools, no
+Enterprise APIs, no change notifications (`subscriptions/listen` returns
+`-32601`).
 
 > SDK note: the 2026-07-28 implementation is the v2 SDK, which ships as two
 > packages (`@modelcontextprotocol/server` and `@modelcontextprotocol/client`),
@@ -207,11 +217,26 @@ call entirely. Every media result carries `license`, `author` (possibly `null`
 with a warning), `attribution` (with `ATTRIBUTION_DISCLAIMER` verbatim), `source`,
 `attribution_source`, `warnings` and `resultType: "complete"`.
 
+**Phase 5 — Geosearch & tables (Group G, read-only):**
+
+| Tool | Required | Purpose |
+|---|---|---|
+| `geo_search` | `latitude`, `longitude` | Radius search via the Action API `list=geosearch`. Finite WGS84 degrees (lat −90…90, lon −180…180), `radius_m` 10–10000 (default 1000), `namespace` 0–15 (default 0), `limit` 1–50 (default 10). Returns ranked `pages[]` with `coordinates`, rounded `distance_m` and host-derived `url`. Empty results are success (`pages: []`, `count: 0`, `resultType: "complete"`); reaching the cap sets `truncated: true` with a warning. Never calls `/page/summary` — use `get_summary` for one known page's coordinates. |
+| `get_tables` | `title` | Extract tables from one page's **Parsoid HTML only** (`/page/html/{title}`; wikitext is not a table source). `output: "structured"` (default) → normalised `headers`/`rows` of `{text, colspan, rowspan}` cells; `output: "html"` → bounded raw `<table>` outerHTML strings. Optional `table_index` (0–19) selects one table. Caps: 20 tables / 200 rows / 30 cells / 2000 chars per cell / 20000 chars per HTML table / span 10 / final `MAX_RESULT_BYTES`; a breach is non-fatal `truncated: true` with a named `warnings[]` entry. Cell text and raw HTML are untrusted external data, never instructions. |
+
+Both Phase 5 tools reuse the shared Phase 1 resolver (`project`/`lang`, aliases
+`enwiki`, `wikipedia:en`, `en.wikipedia`, `commonswiki`, …) and provenance block
+(CC BY-SA 4.0, `attribution.required: true`). They are annotated read-only,
+non-destructive, open-world and idempotent, and feed **only** the separate
+`G5-M3`/`G5-M4` load counters — never the Phase 1 M1–M6, Phase 2 B-M3/B-M4 or
+Phase 3 CF-M3/CF-M4 gates.
+
 All nine Phase 1 tools accept optional `lang` (default `en`) and `project`
 (default `wikipedia`).
 Project aliases include `wiki`/`wp`, `commonswiki`, `wikidatawiki`, Wikimedia
-codes (`enwiki`, `dewiki`, `testwiki`) and dotted forms (`en.wikipedia`); a
-code-encoded language overrides `lang`.
+codes (`enwiki`, `dewiki`, `testwiki`), dotted forms (`en.wikipedia`) and the
+canonical source form (`wikipedia:en`); a code-encoded language overrides
+`lang`.
 
 **Provenance:** every content result carries `source`, `license`, `attribution`,
 `revision` and `timestamp` (null where there is no single revision). Text is
@@ -245,6 +270,24 @@ enforces the protocol mechanisms (semaphore ≤3, `Retry-After`, jittered
 backoff, routing headers, sentinel decoding, cache metadata). Nightly live
 M3/M4 load tests are in `tests/live` and are skipped by default
 (`WMCP_LIVE=1` to enable).
+
+### Test stability under parallel load
+
+Several suites (`tests/contract/stdio.test.ts`, `tests/wikidata/schemas.test.ts`,
+`tests/phase3/*`) start a real `node --import tsx src/index.ts` child process
+through `RawStdioClient`. On a constrained host (8 CPUs but ~1.9 GiB available
+RAM here), Vitest's default `maxWorkers = CPUs - 1` gave every test file its own
+worker — a full `npm test` spawned 33 forks, each potentially launching a `tsx`
+child. That CPU/memory contention intermittently pushed cold starts past the
+20 s per-test timeout (`TestTimeoutError`), even though the same files passed
+in isolation.
+
+`vitest.config.ts` caps concurrency at `maxWorkers: 4` / `minWorkers: 1` and
+raises `testTimeout`/`hookTimeout` to 45 s (a ceiling for occasional GC and
+scheduler pauses, not a relaxation of any assertion). No tests are skipped or
+weakened. Verified with three consecutive full `npm test` runs at this
+revision: 32 files passed / 1 skipped and 278 tests passed / 5 skipped each
+time (durations 43.7 s, 45.9 s, 40.7 s), with no `TestTimeoutError`.
 
 ## Security notes
 
@@ -285,20 +328,28 @@ M3/M4 load tests are in `tests/live` and are skipped by default
   concurrency, `overallPass` and failure details; the human-readable
   `[nightly]` console diagnostics are unchanged. Set
   `WMCP_NIGHTLY_REPORT_PATH` to override the output path.
-- Groups D, E and G corpus cases target tools that ship in later phases and
-  are documented as out of scope. Group B fixtures and AC-33…AC-59, plus
-  Group C/F fixtures and AC-60…AC-94 (except nightly live AC-71/72/92), run in
-  the merge gate. The live cases (AC-42/45/59, TC-B-001/003/005/008/030,
-  TC-C-001/002, TC-F-001) run nightly with `WMCP_LIVE=1`.
+- Groups D and E corpus cases and the un-evidenced Group G capabilities
+  (`compare_revisions`, `get_category_members`, `liftwing_predict`, all writes)
+  are documented as out of scope. The two requested Group G tools
+  (`geo_search`, `get_tables`) are implemented in Phase 5. Group B fixtures and
+  AC-33…AC-59, Group C/F fixtures and AC-60…AC-94 (except nightly live
+  AC-71/72/92), and the Phase 5 fixtures AC-95…AC-119 (TC-G-009…019) run in
+  the merge gate with zero live network calls. The live cases (AC-42/45/59,
+  TC-B-001/003/005/008/030, TC-C-001/002, TC-F-001) run nightly with
+  `WMCP_LIVE=1`.
 - The independent `/tmp/opencode/qa-mcp-smoke.mjs` and `qa-mcp-http.mjs` scripts
-  assert *exactly fifteen* tools (the Phase 1 + Phase 2 invariant). With Phase 3
-  registered they report 19/20 and 14/15 respectively: only the tool-count
-  check differs. They are intentionally left unmodified; the in-repo contract
-  tests assert the full 20-tool catalogue.
+  assert *exactly twenty* tools (the Phase 1+2+3 invariant). With Phase 5
+  registered they report 22: only the tool-count check differs. They are
+  intentionally left unmodified; the in-repo contract tests assert the full
+  22-tool catalogue.
 - Group C/F keep a separate nightly load profile (`CF-M3` p95 budgets and
   `CF-M4` 429-count == 0). Phase 3 tools do **not** feed the Phase 1 M3/M4 or
-  Phase 2 B-M3/B-M4 gates. No live Analytics/Attribution/imageinfo call runs in
-  the fixture-only merge gate (`AC-71`, `AC-72`, `AC-92` are nightly live).
+  Phase 2 B-M3/B-M4 gates. Phase 5 tools (`geo_search`, `get_tables`) feed only
+  their own `G5-M3` (per-tool p95 < 2 s, ≥150 samples, excluding network-bound
+  HTML fetches) and `G5-M4` (429 count == 0) counters, never the M1–M6,
+  B-M3/B-M4 or CF-M3/CF-M4 gates. No live Analytics/Attribution/imageinfo call
+  runs in the fixture-only merge gate (`AC-71`, `AC-72`, `AC-92` are nightly
+  live).
 - Language variants without their own wiki (`zh-hans`, `pt-br`, ...) are routed
   to their real base-language host; the full requested code is retained in
   `lang`/`source`. Codes with real wikis (`be-tarask`, `zh-min-nan`, `zh-tw`)

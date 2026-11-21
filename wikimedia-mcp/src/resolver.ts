@@ -88,10 +88,19 @@ export function resolveTarget(params: { lang?: string; project?: string }): Reso
   } else if (BASE_PROJECTS.has(rawProject)) {
     project = rawProject;
   } else {
-    // Wikimedia-style codes: {lang}wiki, {lang}.{project}.
+    // Wikimedia-style codes: {lang}wiki, {lang}.{project}, and the canonical
+    // source form {project}:{lang} (e.g. wikipedia:en — contract 13 §4.3.4).
+    const colonMatch = /^([a-z]+):([a-z]{2,12}(?:-[a-z0-9]{2,12}){0,3})$/.exec(rawProject);
     const codeMatch = /^([a-z]{2,12}(?:-[a-z0-9]{2,12}){0,3})wiki$/.exec(rawProject);
     const dottedMatch = /^([a-z]{2,12}(?:-[a-z0-9]{2,12}){0,3})\.([a-z]+)$/.exec(rawProject);
-    if (codeMatch?.[1]) {
+    if (colonMatch?.[1] && colonMatch[2] && BASE_PROJECTS.has(colonMatch[1])) {
+      const candidateLang = normalizeLang(colonMatch[2]);
+      if (!isValidLang(candidateLang)) {
+        throw new ResolverError('invalid_language', `Invalid Wikimedia language code '${candidateLang}'.`);
+      }
+      lang = candidateLang;
+      project = colonMatch[1];
+    } else if (codeMatch?.[1]) {
       lang = normalizeLang(codeMatch[1]);
       project = 'wikipedia';
     } else if (dottedMatch?.[1] && dottedMatch[2]) {

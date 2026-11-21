@@ -3,7 +3,7 @@ import { toolError, type ToolErrorOptions } from './errors.js';
 import type { ToolErrorCode, ToolResponse } from '../types.js';
 
 export const SERVER_NAME = 'wikimedia-mcp';
-export const SERVER_VERSION = '1.0.0';
+export const SERVER_VERSION = '3.0.0';
 
 export const serverInfo = Object.freeze({ name: SERVER_NAME, version: SERVER_VERSION });
 

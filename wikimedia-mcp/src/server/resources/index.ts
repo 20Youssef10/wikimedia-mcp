@@ -16,7 +16,7 @@ export function registerMinimalResources(server: McpServer): void {
         mimeType: 'application/json',
         text: JSON.stringify({
           name: 'wikimedia-mcp',
-          version: '1.0.0',
+          version: '3.0.0',
           protocolVersion: '2026-07-28',
           tools: 9,
           readOnly: true,

@@ -1840,7 +1840,11 @@
       "category": "error",
       "expected": {
         "status": "error",
-        "required_fields": ["error.code", "error.message", "error.retryable"],
+        "required_fields": [
+          "error.code",
+          "error.message",
+          "error.retryable"
+        ],
         "constraints": [
           "error.code == 'validation_error'",
           "hourly timestamp shape rejected for daily granularity",
@@ -1864,7 +1868,12 @@
       "category": "error",
       "expected": {
         "status": "error",
-        "required_fields": ["error.code", "error.message", "error.retryable", "error.details.limits"],
+        "required_fields": [
+          "error.code",
+          "error.message",
+          "error.retryable",
+          "error.details.limits"
+        ],
         "constraints": [
           "error.code == 'invalid_date_range'",
           "over-cap span reports details.limits",
@@ -1888,7 +1897,11 @@
       "category": "error",
       "expected": {
         "status": "error",
-        "required_fields": ["error.code", "error.message", "error.retryable"],
+        "required_fields": [
+          "error.code",
+          "error.message",
+          "error.retryable"
+        ],
         "constraints": [
           "error.code == 'invalid_date_range'",
           "weekly dates must be Mondays",
@@ -1943,7 +1956,11 @@
       "category": "error",
       "expected": {
         "status": "error",
-        "required_fields": ["error.code", "error.message", "error.retryable"],
+        "required_fields": [
+          "error.code",
+          "error.message",
+          "error.retryable"
+        ],
         "constraints": [
           "error.code == 'invalid_date_range'",
           "'today' and future dates rejected",
@@ -1967,7 +1984,12 @@
       "category": "happy_path",
       "expected": {
         "status": "ok",
-        "required_fields": ["project", "article", "results", "_meta"],
+        "required_fields": [
+          "project",
+          "article",
+          "results",
+          "_meta"
+        ],
         "constraints": [
           "enwiki resolves to en.wikipedia",
           "commonswiki resolves to commons.wikimedia"
@@ -1991,7 +2013,12 @@
       "category": "resilience",
       "expected": {
         "status": "ok",
-        "required_fields": ["project", "results", "count", "_meta"],
+        "required_fields": [
+          "project",
+          "results",
+          "count",
+          "_meta"
+        ],
         "constraints": [
           "HTTP 429 with Retry-After honoured on the same source",
           "eventual success after bounded retry"
@@ -2013,7 +2040,11 @@
       "category": "security",
       "expected": {
         "status": "error",
-        "required_fields": ["error.code", "error.message", "error.retryable"],
+        "required_fields": [
+          "error.code",
+          "error.message",
+          "error.retryable"
+        ],
         "constraints": [
           "error.code == 'invalid_project'",
           "zero outbound requests",
@@ -2036,8 +2067,16 @@
       "expected": {
         "status": "ok",
         "required_fields": [
-          "filename", "url", "license", "author", "attribution", "source",
-          "attribution_source", "warnings", "resultType", "_meta"
+          "filename",
+          "url",
+          "license",
+          "author",
+          "attribution",
+          "source",
+          "attribution_source",
+          "warnings",
+          "resultType",
+          "_meta"
         ],
         "constraints": [
           "beta 404 rest-no-match falls back to action-imageinfo",
@@ -2060,7 +2099,15 @@
       "category": "happy_path",
       "expected": {
         "status": "ok",
-        "required_fields": ["filename", "url", "license", "attribution", "source", "warnings", "_meta"],
+        "required_fields": [
+          "filename",
+          "url",
+          "license",
+          "attribution",
+          "source",
+          "warnings",
+          "_meta"
+        ],
         "constraints": [
           "ATTRIBUTION_API_VERSION=v1 404 rest-no-match triggers fallback",
           "config-variant fixture"
@@ -2081,7 +2128,16 @@
       "category": "happy_path",
       "expected": {
         "status": "ok",
-        "required_fields": ["filename", "url", "license", "license.url", "license.source", "attribution", "warnings", "_meta"],
+        "required_fields": [
+          "filename",
+          "url",
+          "license",
+          "license.url",
+          "license.source",
+          "attribution",
+          "warnings",
+          "_meta"
+        ],
         "constraints": [
           "per-file public-domain licence emitted",
           "site-wide CC BY-SA 4.0 URL never substituted",
@@ -2103,7 +2159,13 @@
       "category": "security",
       "expected": {
         "status": "ok",
-        "required_fields": ["filename", "author", "warnings", "attribution", "_meta"],
+        "required_fields": [
+          "filename",
+          "author",
+          "warnings",
+          "attribution",
+          "_meta"
+        ],
         "constraints": [
           "HTML <a> in Artist stripped",
           "prompt-injection canary returned as data",
@@ -2125,7 +2187,16 @@
       "category": "happy_path",
       "expected": {
         "status": "ok",
-        "required_fields": ["filename", "url", "storage", "attribution_source", "warnings", "license", "attribution", "_meta"],
+        "required_fields": [
+          "filename",
+          "url",
+          "storage",
+          "attribution_source",
+          "warnings",
+          "license",
+          "attribution",
+          "_meta"
+        ],
         "constraints": [
           "storage == 'remote'",
           "zero beta Attribution API calls",
@@ -2147,7 +2218,13 @@
       "category": "happy_path",
       "expected": {
         "status": "ok",
-        "required_fields": ["filename", "url", "license", "attribution", "_meta"],
+        "required_fields": [
+          "filename",
+          "url",
+          "license",
+          "attribution",
+          "_meta"
+        ],
         "constraints": [
           "beta 404 with valid imageinfo is success",
           "not file_not_found"
@@ -2168,7 +2245,11 @@
       "category": "security",
       "expected": {
         "status": "error",
-        "required_fields": ["error.code", "error.message", "error.retryable"],
+        "required_fields": [
+          "error.code",
+          "error.message",
+          "error.retryable"
+        ],
         "constraints": [
           "error.code == 'upstream_unavailable'",
           "cross-origin redirect not followed",
@@ -2190,7 +2271,13 @@
       "category": "happy_path",
       "expected": {
         "status": "ok",
-        "required_fields": ["filename", "license", "attribution", "attribution.disclaimer", "_meta"],
+        "required_fields": [
+          "filename",
+          "license",
+          "attribution",
+          "attribution.disclaimer",
+          "_meta"
+        ],
         "constraints": [
           "ATTRIBUTION_DISCLAIMER injected verbatim",
           "100% of media results carry it"
@@ -2211,7 +2298,14 @@
       "category": "edge_case",
       "expected": {
         "status": "ok",
-        "required_fields": ["filename", "license", "license.url", "warnings", "attribution", "_meta"],
+        "required_fields": [
+          "filename",
+          "license",
+          "license.url",
+          "warnings",
+          "attribution",
+          "_meta"
+        ],
         "constraints": [
           "license.url is null for an unmapped short name",
           "warning emitted",
@@ -2220,6 +2314,337 @@
       },
       "mode": "fixture",
       "notes": "Phase 3 AC-82: no guessed licence URL."
+    },
+    {
+      "id": "TC-G-009",
+      "tool_group": "G",
+      "tool": "geo_search",
+      "params": {
+        "latitude": 95.1,
+        "longitude": -122.4194,
+        "project": "enwiki"
+      },
+      "category": "error",
+      "expected": {
+        "status": "error",
+        "required_fields": [
+          "error.code",
+          "error.message",
+          "error.action",
+          "error.details.limits"
+        ],
+        "constraints": [
+          "error.code == 'invalid_coordinates'",
+          "details.limits present",
+          "zero outbound requests"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 5 AC-100: finite latitude outside [-90,90]."
+    },
+    {
+      "id": "TC-G-010",
+      "tool_group": "G",
+      "tool": "geo_search",
+      "params": {
+        "latitude": 37.7749,
+        "longitude": -122.4194,
+        "radius_m": 10001,
+        "namespace": 16,
+        "limit": 51,
+        "project": "enwiki"
+      },
+      "category": "error",
+      "expected": {
+        "status": "error",
+        "required_fields": [
+          "error.code",
+          "error.message",
+          "error.action"
+        ],
+        "constraints": [
+          "error.code == 'validation_error'",
+          "zero outbound requests"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 5 AC-101: radius/namespace/limit out of bounds."
+    },
+    {
+      "id": "TC-G-011",
+      "tool_group": "G",
+      "tool": "geo_search",
+      "params": {
+        "latitude": 0,
+        "longitude": -140,
+        "radius_m": 1000,
+        "project": "enwiki"
+      },
+      "category": "edge_case",
+      "expected": {
+        "status": "ok",
+        "required_fields": [
+          "pages",
+          "count",
+          "source",
+          "license",
+          "attribution",
+          "resultType",
+          "_meta"
+        ],
+        "constraints": [
+          "empty result is success",
+          "pages == []",
+          "count == 0",
+          "resultType == complete",
+          "no page_not_found"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 5 AC-105: mid-ocean zero-hit success."
+    },
+    {
+      "id": "TC-G-012",
+      "tool_group": "G",
+      "tool": "geo_search",
+      "params": {
+        "latitude": 37.7749,
+        "longitude": -122.4194,
+        "project": "https://evil.example"
+      },
+      "category": "security",
+      "expected": {
+        "status": "error",
+        "required_fields": [
+          "error.code",
+          "error.message",
+          "error.action"
+        ],
+        "constraints": [
+          "error.code == 'invalid_project'",
+          "zero outbound requests",
+          "no caller host interpolated"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 5 AC-102: host-shaped project rejected; enwiki alias resolved by TC-G-003."
+    },
+    {
+      "id": "TC-G-013",
+      "tool_group": "G",
+      "tool": "get_tables",
+      "params": {
+        "title": "Earth",
+        "output": "structured",
+        "project": "enwiki"
+      },
+      "category": "happy_path",
+      "expected": {
+        "status": "ok",
+        "required_fields": [
+          "title",
+          "output",
+          "tables",
+          "tables[0].rows",
+          "tables[0].rows[0][0].text",
+          "count",
+          "source",
+          "license",
+          "attribution",
+          "resultType",
+          "_meta"
+        ],
+        "constraints": [
+          "structured cells have text/colspan/rowspan",
+          "caption null when absent",
+          "HTML stripped and entities decoded"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 5 AC-108/AC-114: structured table extraction + provenance."
+    },
+    {
+      "id": "TC-G-014",
+      "tool_group": "G",
+      "tool": "get_tables",
+      "params": {
+        "title": "Earth",
+        "output": "html",
+        "project": "enwiki"
+      },
+      "category": "happy_path",
+      "expected": {
+        "status": "ok",
+        "required_fields": [
+          "title",
+          "output",
+          "tables",
+          "tables[0].html",
+          "warnings",
+          "attribution",
+          "source",
+          "_meta"
+        ],
+        "constraints": [
+          "raw <table> outerHTML returned",
+          "each html <= 20000 chars",
+          "untrusted warning in warnings and attribution.disclaimer"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 5 AC-109: bounded raw HTML output."
+    },
+    {
+      "id": "TC-G-015",
+      "tool_group": "G",
+      "tool": "get_tables",
+      "params": {
+        "title": "BigTablePage",
+        "project": "enwiki",
+        "_simulate": "caps"
+      },
+      "category": "edge_case",
+      "expected": {
+        "status": "ok",
+        "required_fields": [
+          "tables",
+          "count",
+          "truncated",
+          "warnings",
+          "source",
+          "license",
+          "attribution",
+          "_meta"
+        ],
+        "constraints": [
+          "<=20 tables",
+          "<=200 rows",
+          "<=30 cells",
+          "<=2000 chars/cell",
+          "spans clamped to 10",
+          "named cap warnings",
+          "provenance retained"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 5 AC-111: all caps enforced with deterministic non-fatal truncation."
+    },
+    {
+      "id": "TC-G-016",
+      "tool_group": "G",
+      "tool": "get_tables",
+      "params": {
+        "title": "DefinitelyMissingPage",
+        "project": "enwiki"
+      },
+      "category": "error",
+      "expected": {
+        "status": "error",
+        "required_fields": [
+          "error.code",
+          "error.message",
+          "error.action"
+        ],
+        "constraints": [
+          "error.code == 'page_not_found'",
+          "hint directs to search",
+          "no tables returned"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 5 AC-112: REST 404 not_found maps to page_not_found."
+    },
+    {
+      "id": "TC-G-017",
+      "tool_group": "G",
+      "tool": "get_tables",
+      "params": {
+        "title": "PromptInjectionTest",
+        "project": "enwiki",
+        "_simulate": "injection"
+      },
+      "category": "security",
+      "expected": {
+        "status": "ok",
+        "required_fields": [
+          "tables",
+          "tables[0].rows",
+          "source",
+          "license",
+          "attribution",
+          "_meta"
+        ],
+        "constraints": [
+          "canary returned verbatim as data",
+          "labelled untrusted",
+          "no instruction executed",
+          "no token disclosed"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 5 AC-113: prompt-injection canary treated as inert data."
+    },
+    {
+      "id": "TC-G-018",
+      "tool_group": "G",
+      "tool": "geo_search",
+      "params": {
+        "latitude": 2,
+        "longitude": 2,
+        "project": "enwiki",
+        "_simulate": "geo-429"
+      },
+      "category": "resilience",
+      "expected": {
+        "status": "error",
+        "required_fields": [
+          "error.code",
+          "error.message",
+          "error.retryable",
+          "error.details",
+          "error.hint"
+        ],
+        "constraints": [
+          "error.code == 'rate_limited'",
+          "retry_after_seconds populated",
+          "bounded backoff",
+          "stays on allowlisted host"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 5 AC-115: 429 with Retry-After maps to rate_limited after bounded retries."
+    },
+    {
+      "id": "TC-G-019",
+      "tool_group": "G",
+      "tool": "get_tables",
+      "params": {
+        "title": "Earth",
+        "project": "enwiki",
+        "_simulate": "prov-sweep"
+      },
+      "category": "happy_path",
+      "expected": {
+        "status": "ok",
+        "required_fields": [
+          "source",
+          "license",
+          "license.title",
+          "license.short",
+          "license.url",
+          "attribution",
+          "attribution.required",
+          "resultType",
+          "_meta"
+        ],
+        "constraints": [
+          "100% license/attribution/source/resultType coverage",
+          "revision/timestamp null when unknown",
+          "never fabricated"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 5 AC-114/AC-118: provenance coverage sweep over both tools."
     }
   ]
 }

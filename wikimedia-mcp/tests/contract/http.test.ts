@@ -57,7 +57,7 @@ describe('A. Discovery and protocol surface', () => {
     const result = response.body['result'] as Record<string, unknown>;
     expect(result['supportedVersions']).toContain('2026-07-28');
     expect(result['serverInfo'] ?? (result['_meta'] as Record<string, unknown>)?.['io.modelcontextprotocol/serverInfo']).toBeDefined();
-    expect((result['_meta'] as Record<string, unknown>)?.['io.modelcontextprotocol/serverInfo']).toMatchObject({ name: 'wikimedia-mcp', version: '1.0.0' });
+    expect((result['_meta'] as Record<string, unknown>)?.['io.modelcontextprotocol/serverInfo']).toMatchObject({ name: 'wikimedia-mcp', version: '3.0.0' });
     expect(result['capabilities']).toMatchObject({
       tools: { listChanged: false }, resources: { listChanged: false }, prompts: { listChanged: false },
     });

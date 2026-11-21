@@ -13,6 +13,7 @@ export const JSONRPC_CODES = {
 } as const;
 
 const DEFAULT_ACTIONS: Partial<Record<ToolErrorCode, string>> = {
+  invalid_coordinates: 'Supply finite WGS84 decimal degrees: latitude in [-90, 90], longitude in [-180, 180].',
   rate_limited: 'Wait for retry_after_seconds (or the indicated backoff) and retry the call.',
   quota_exhausted: 'Reduce call volume or wait for the quota reset window before retrying.',
   upstream_unavailable: 'Retry shortly; the upstream service is temporarily unavailable.',

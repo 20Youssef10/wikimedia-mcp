@@ -150,7 +150,7 @@ uses raw newline-delimited JSON-RPC. Observed output:
 - `server/discover` → `supportedVersions: ["2026-07-28"]`, `resultType:
   "complete"`, `ttlMs: 60000`, `cacheScope: "public"`,
   `_meta["io.modelcontextprotocol/serverInfo"] = {name:"wikimedia-mcp",
-  version:"1.0.0"}`, non-empty `instructions`, capabilities with all three
+  version:"3.0.0"}`, non-empty `instructions`, capabilities with all three
   `listChanged: false`.
 - `tools/list` → exactly nine names: `search`, `get_summary`, `get_page`,
   `get_sections`, `get_related_pages`, `get_media`, `get_languages`,

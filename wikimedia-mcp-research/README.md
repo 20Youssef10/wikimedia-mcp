@@ -53,6 +53,8 @@ Where a claim's precision was previously overstated or understated, the current 
 | 2026-11-21 (acceptance & Phase 2) | Nightly live gate executed off-peak and **PASSED** after fixing a contract contradiction (147 samples in Class R vs a 150-sample minimum) and a provenance-detection bug — 330 live calls, M1=1.0, M4=0 429s, M5/M6=1.0. Host compatibility verified: Grok and OpenCode (with mandatory `protocol:"2026-07-28"`) pass; Cursor/Codex are legacy-client incompatibilities, Cline untested. Phase 1 merged as tag `phase-1-merged`. Phase 2 (Group B Wikidata: six tools, bounded SPARQL, external-ID map, AC-33..AC-59, 22 new corpus cases) implemented with 218 tests passing and independent QA green; merged as tag `phase-2-merged`. |
 | 2026-11-21 (rough edges) | Nightly gate now persists a structured JSON report (`reports/nightly-live.json`) on every run; SPARQL label-service queries get a documented timeout bump to the 60 s cap with a warning; all three opt-in Group B live cases executed and passed (20/20). Independent QA 15/15, 10/10, 9/9. |
 | 2026-11-21 (Phase 3) | Added report 11 and implemented Groups C+F: `get_pageviews`, `get_most_read`, `get_unique_devices`, `get_file_metadata`, `get_image_info` (20 total tools). Attribution beta primary with Action `extmetadata` fallback, per-file licences, zero new config keys, AC-60…AC-94, 17 new corpus cases (84 total). Live smoke verified against Analytics and Commons. 278 tests passing, independent QA green. |
+| 2026-11-21 (hardening & spike) | Capped Vitest at 4 workers / 45 s timeouts — three consecutive `npm test` runs pass with identical counts. `serverInfo.version` bumped 1.0.0 → 3.0.0 (contract/protocol versions unchanged). Two additional clean nightly baselines (p95R 287–370 ms, p95A 504–638 ms, 0 429s) — no §4.6 re-baselining needed. Group D spike (report 12): registry demand still ~zero; DROP the always-on EventStreams consumer, BUILD only a bounded stateless `get_recent_changes` via Action API polling. Enterprise remains excluded; modern-only host stance retained. |
+| 2026-11-21 (Phase 5) | Added report 13 and implemented the requested Group G slice: `geo_search` and `get_tables` (22 tools), Parsoid-HTML table extraction with deterministic caps, geosearch bounds, separate G5-M3/G5-M4 counters, AC-95…AC-119, 11 new corpus cases (95 total). Write tools remain hard-blocked: gate assessment found G1–G12 largely unevidenced. 308 tests passing, independent QA green. |
 
 ## Reports
 
@@ -69,7 +71,9 @@ Where a claim's precision was previously overstated or understated, the current 
 | `09-implementation-contract.md` | Frozen Phase 1 tool schemas, TypeScript stack, load profile, 32 acceptance criteria | **Frozen v1.0.1 — ready to implement** |
 | `10-phase2-contract.md` | Frozen Phase 2 (Wikidata/Group B) tool contract, AC-33…AC-59 | Frozen |
 | `11-phase3-contract.md` | Frozen Phase 3 (metrics + Commons/Groups C+F) contract, AC-60…AC-94 | Frozen |
-| `test-corpus.json` | 84 machine-readable test cases (A–G, all categories) | Validated JSON |
+| `12-group-d-spike.md` | EventStreams feasibility spike and BUILD/DROP decision | Decision: bounded poll tool, drop SSE consumer |
+| `13-phase5-contract.md` | Frozen Phase 5 (requested Group G: geosearch + tables), AC-95…AC-119 | Frozen v5.0.0 |
+| `test-corpus.json` | 95 machine-readable test cases (A–G, all categories) | Validated JSON |
 
 ## How to use these documents
 
