@@ -102,7 +102,7 @@ function sparqlAdvertised(config: Config): Record<string, unknown> {
     properties: {
       query: { type: 'string', minLength: 1, maxLength: config.wikidataSparql.maxQueryLength, description: 'Portable SPARQL 1.1 SELECT query. Explicit PREFIX declarations; no Blazegraph-only extensions. A top-level LIMIT is injected when absent.' },
       limit: { type: 'integer', minimum: 1, maximum: config.wikidataSparql.maxRows, description: 'Overrides any inline LIMIT; clamped to WIKIDATA_SPARQL_MAX_ROWS. Omit to honour an inline LIMIT.' },
-      timeout_ms: { type: 'integer', default: timeoutDefault, minimum: 1000, maximum: 60000, description: 'Client-side deadline in milliseconds; never above 60000.' },
+      timeout_ms: { type: 'integer', default: timeoutDefault, minimum: 1000, maximum: 60000, description: 'Client-side deadline in milliseconds; never above 60000. For SERVICE wikibase:label queries the server uses the full 60000 ms cap when this is lower, and returns effective_timeout_ms plus a non-fatal warning.' },
     },
     required: ['query'],
     additionalProperties: false,
@@ -115,7 +115,7 @@ export const GROUP_B_DESCRIPTIONS: Record<string, string> = {
   wikidata_get_statements: 'Return statements for one property of one item, ordered preferred → normal → deprecated, with bounded paging and optional one-call label decoration (resolve_labels).',
   wikidata_get_sitelinks: 'Return an item sitelinks, optionally restricted to allowlisted Wikimedia site codes. Unknown site codes are rejected before any request.',
   wikidata_resolve_external_id: 'Resolve a DOI, PMID, ORCID, OpenAlex ID, IMDb ID or a (site, title) sitelink to a Wikidata QID. Supply exactly one of scheme+id or site+title.',
-  wikidata_sparql_query: 'Portable SPARQL 1.1 only; SELECT only; a LIMIT is added automatically when missing; queries are capped by length, complexity, rows and 60 s. Examples: (1) `SELECT ?item WHERE { ?item wdt:P31 wd:Q5 } LIMIT 10`; (2) `SELECT ?item ?itemLabel WHERE { ?item wdt:P106 wd:Q36834 . SERVICE wikibase:label { bd:serviceParam wikibase:language "en". } } LIMIT 10` (label service is slower); (3) `SELECT ?item WHERE { ?item wdt:P356 "10.1038/nature12345" } LIMIT 10`.',
+  wikidata_sparql_query: 'Portable SPARQL 1.1 only; SELECT only; a LIMIT is added automatically when missing; queries are capped by length, complexity, rows and 60 s. Label-service queries use the full 60 s cap and report effective_timeout_ms with a warning. Examples: (1) `SELECT ?item WHERE { ?item wdt:P31 wd:Q5 } LIMIT 10`; (2) `SELECT ?item ?itemLabel WHERE { ?item wdt:P106 wd:Q36834 . SERVICE wikibase:label { bd:serviceParam wikibase:language "en". } } LIMIT 10` (label service is slower); (3) `SELECT ?item WHERE { ?item wdt:P356 "10.1038/nature12345" } LIMIT 10`.',
 };
 
 export const GROUP_B_TOOL_NAMES = [

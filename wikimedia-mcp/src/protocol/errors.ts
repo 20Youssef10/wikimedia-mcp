@@ -20,6 +20,11 @@ const DEFAULT_ACTIONS: Partial<Record<ToolErrorCode, string>> = {
   internal_error: 'Retry once; if the error persists, report it with the correlation ID.',
   page_not_found: 'Check the title or call search with the same lang/project.',
   invalid_section: 'Call get_sections without a section argument to list valid section indices.',
+  // Phase 3 (Group C/F) — every terminal code has an actionable next step.
+  invalid_article: 'Use a page title without control characters, backslashes or ".." segments; spaces or underscores are accepted.',
+  invalid_date_range: 'Use a completed UTC date range within the documented bounds and granularity alignment.',
+  file_not_found: "Confirm the exact filename on Commons (including the 'File:' prefix), then retry.",
+  attribution_unavailable: 'Retry with the same filename; if it persists, verify the licence on the file page before reuse.',
   unsupported_project: 'Use a supported project name or Wikimedia project code.',
   host_not_allowed: 'Do not supply host/api_url parameters; hosts are fixed by the server allowlist.',
   // Phase 2 (Group B) — every terminal code has an actionable next step (AC-24/M6).

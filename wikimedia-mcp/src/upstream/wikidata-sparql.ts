@@ -42,6 +42,13 @@ export function shouldSwitchEndpoint(status: number, body = ''): boolean {
   return status === 401 || status === 404 || status >= 500;
 }
 
+/**
+ * Absolute WDQS deadline hard cap (§4.5). Label-service queries are the one
+ * known slow path: the server may *use* the full cap for them, but it must
+ * never accept a `timeout_ms` above it or raise the cap itself.
+ */
+export const LABEL_SERVICE_TIMEOUT_MS = 60_000;
+
 /** §4.3 hard complexity caps — code constants (SR-12), never env keys. */
 export const COMPLEXITY_LIMITS = Object.freeze({
   queryLength: 10_000,
@@ -174,6 +181,18 @@ function tokenize(masked: string): Token[] {
 function countWord(tokens: Token[], word: string): number {
   const upper = word.toUpperCase();
   return tokens.filter((token) => token.kind === 'word' && token.text.toUpperCase() === upper).length;
+}
+
+/**
+ * Detect the (only permitted) label SERVICE on tokenised, masked text so
+ * mentions inside comments or string literals do not count. Offsets are
+ * stable because masking preserves length (see maskQuery).
+ */
+export function usesLabelService(query: string): boolean {
+  const masked = maskQuery(query);
+  return tokenize(masked).some((token) => token.kind === 'word'
+    && token.text.toUpperCase() === 'SERVICE'
+    && /^wikibase:label\b/i.test(query.slice(token.end).replace(/^\s+/, '')));
 }
 
 function limitsFor(maxQueryLength: number, observed: Record<string, number>): Record<string, unknown> {
@@ -464,7 +483,7 @@ export class SparqlRunner {
       const cached = this.cache.get(key);
       if (cached !== undefined) return cached;
     }
-    const timeoutMs = Math.min(options.timeoutMs ?? this.plan.timeoutMs, 60_000);
+    const timeoutMs = Math.min(options.timeoutMs ?? this.plan.timeoutMs, LABEL_SERVICE_TIMEOUT_MS);
     let timedOut = false;
     let inboundAborted = false;
     const endpointClasses = this.plan.endpoints.map((url) => {
@@ -560,11 +579,25 @@ export class SparqlRunner {
       }
     }
     if (timedOut) {
+      const labelService = usesLabelService(effectiveQuery);
+      const atHardCap = timeoutMs >= LABEL_SERVICE_TIMEOUT_MS;
       throw new SparqlExecutionError('query_timeout', `The SPARQL query exceeded its ${timeoutMs} ms deadline.`, {
         retryable: true,
-        details: { backend: 'wdqs', timeout_ms: timeoutMs },
-        action: 'Simplify the query, add a LIMIT, or raise timeout_ms (maximum 60000).',
-        hint: 'Label-service queries are slower; consider a bounded SELECT without the label service.',
+        details: {
+          backend: 'wdqs', timeout_ms: timeoutMs, effective_timeout_ms: timeoutMs, label_service: labelService,
+        },
+        // Never suggest raising timeout_ms once the 60 s hard cap is already in
+        // force; name the label service so the next action is concrete.
+        action: atHardCap
+          ? 'Simplify the query, add a LIMIT, or split label decoration into a bounded SELECT without the label service.'
+          : 'Simplify the query, add a LIMIT, or raise timeout_ms (maximum 60000).',
+        hint: labelService
+          ? atHardCap
+            ? 'The wikibase:label SERVICE is the likely cause of the slow query; timeout_ms is already at the 60000 ms hard cap.'
+            : 'The wikibase:label SERVICE is the likely cause of the slow query; raise timeout_ms up to 60000.'
+          : atHardCap
+            ? 'The query deadline was reached at the 60000 ms hard cap; simplify the query.'
+            : 'The query deadline was reached; timeout_ms may be raised up to 60000.',
       });
     }
     throw new SparqlExecutionError('upstream_unavailable',

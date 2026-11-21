@@ -116,6 +116,22 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     }
   }
 
+  // Phase 3 §1.4 / AC-62: the three Attribution keys are reused as-is, but an
+  // empty/malformed version or an unknown fallback token must terminate boot.
+  // No new key is introduced. `v1` is accepted but still falls back at runtime
+  // because the live v1 path returns 404 rest-no-match.
+  if (!/^v[0-9]+(?:-[a-z0-9]+)?$/.test(raw.ATTRIBUTION_API_VERSION)) {
+    throw new Error('ATTRIBUTION_API_VERSION must match ^v[0-9]+(?:-[a-z0-9]+)?$');
+  }
+  const allowedAttributionFallbacks = new Set(['rest-bare', 'action-rightsinfo', 'action-imageinfo']);
+  const attributionFallbacks = csv(raw.ATTRIBUTION_FALLBACKS);
+  if (attributionFallbacks.length === 0
+      || attributionFallbacks.some((token) => !allowedAttributionFallbacks.has(token))) {
+    throw new Error(
+      'ATTRIBUTION_FALLBACKS must be a non-empty ordered list of rest-bare, action-rightsinfo, action-imageinfo',
+    );
+  }
+
   return {
     userAgent: raw.USER_AGENT,
     concurrencyLimit: raw.CONCURRENCY_LIMIT,

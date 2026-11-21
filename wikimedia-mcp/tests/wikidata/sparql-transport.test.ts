@@ -4,7 +4,9 @@ import {
   createWikidataHarness, sparqlJson, qidBinding,
   WDQS, WDQS_V2, type Harness,
 } from './helpers.js';
-import { sparqlEndpointPlan, shouldSwitchEndpoint } from '../../src/upstream/wikidata-sparql.js';
+import {
+  sparqlEndpointPlan, shouldSwitchEndpoint, SparqlExecutionError, SparqlRunner,
+} from '../../src/upstream/wikidata-sparql.js';
 import type { ToolResponse } from '../../src/types.js';
 
 let harness: Harness;
@@ -12,6 +14,11 @@ beforeAll(() => { harness = createWikidataHarness(); harness.server.listen({ onU
 afterEach(() => { harness.server.resetHandlers(); harness.reset(); });
 
 const QUERY = 'SELECT ?item WHERE { ?item ?p ?o } LIMIT 5';
+const LABEL_QUERY = [
+  'PREFIX wikibase: <http://wikiba.se/ontology#>',
+  'PREFIX bd: <http://www.bigdata.com/rdf#>',
+  'SELECT ?item ?itemLabel WHERE { ?item wdt:P31 wd:Q5 . SERVICE wikibase:label { bd:serviceParam wikibase:language "en". } } LIMIT 5',
+].join('\n');
 
 async function call(h: Harness = harness): Promise<Record<string, unknown>> {
   const result = await h.handlers['wikidata_sparql_query']?.({ query: QUERY }) as ToolResponse;
@@ -152,5 +159,68 @@ describe('AC-52 — deadline abort releases the WDQS slot', () => {
     answerAt(WDQS);
     const next = await call();
     expect(next['error']).toBeUndefined();
+  }, 20000);
+});
+
+describe('label-service deadline UX — effective_timeout_ms (non-fatal bump)', () => {
+  it('label query with timeout_ms=30000 uses the full 60000 ms cap and warns', async () => {
+    answerAt(WDQS);
+    const result = await harness.handlers['wikidata_sparql_query']?.({ query: LABEL_QUERY, timeout_ms: 30000 }) as ToolResponse;
+    const payload = result.structuredContent as Record<string, unknown>;
+    expect(result.isError).toBeUndefined();
+    expect(payload['error']).toBeUndefined();
+    expect(payload['effective_timeout_ms']).toBe(60000);
+    const warnings = payload['warnings'] as string[];
+    expect(warnings.some((warning) => warning.includes('label-service') && warning.includes('60000'))).toBe(true);
+    expect(harness.calls).toHaveLength(1);
+  });
+
+  it('non-label query keeps the requested timeout and emits no timeout warning', async () => {
+    answerAt(WDQS);
+    const result = await harness.handlers['wikidata_sparql_query']?.({ query: QUERY, timeout_ms: 30000 }) as ToolResponse;
+    const payload = result.structuredContent as Record<string, unknown>;
+    expect(payload['error']).toBeUndefined();
+    expect(payload['effective_timeout_ms']).toBe(30000);
+    expect(payload['warnings']).toEqual([]);
+  });
+
+  it('label query already at timeout_ms=60000 is not bumped again', async () => {
+    answerAt(WDQS);
+    const result = await harness.handlers['wikidata_sparql_query']?.({ query: LABEL_QUERY, timeout_ms: 60000 }) as ToolResponse;
+    const payload = result.structuredContent as Record<string, unknown>;
+    expect(payload['error']).toBeUndefined();
+    expect(payload['effective_timeout_ms']).toBe(60000);
+    expect((payload['warnings'] as string[]).some((warning) => warning.includes('timeout_ms raised'))).toBe(false);
+  });
+
+  it('a label SERVICE mentioned only inside a literal does not count', async () => {
+    const query = 'SELECT ?item WHERE { ?item ?p "SERVICE wikibase:label" } LIMIT 5';
+    answerAt(WDQS);
+    const result = await harness.handlers['wikidata_sparql_query']?.({ query, timeout_ms: 30000 }) as ToolResponse;
+    const payload = result.structuredContent as Record<string, unknown>;
+    expect(payload['error']).toBeUndefined();
+    expect(payload['effective_timeout_ms']).toBe(30000);
+  });
+
+  it('a timed-out label query names the label service in an actionable error', async () => {
+    for (const endpoint of [WDQS, WDQS_V2, 'https://query-main.wikidata.org/sparql']) {
+      harness.server.use(http.get(`${endpoint}*`, async ({ request }) => {
+        harness.calls.push({ url: request.url, endpoint });
+        await delay(1200);
+        return HttpResponse.json(sparqlJson(['item'], [qidBinding('Q42')]));
+      }));
+    }
+    // Exercise the runner directly: the tool handler intentionally raises a
+    // label query's deadline to 60 s before reaching this error path.
+    const runner = new SparqlRunner(harness.config, harness.client);
+    let caught: unknown;
+    try { await runner.execute(LABEL_QUERY, 5, { timeoutMs: 1000 }); }
+    catch (error) { caught = error; }
+    expect(caught).toBeInstanceOf(SparqlExecutionError);
+    const error = caught as SparqlExecutionError;
+    expect(error.code).toBe('query_timeout');
+    expect(error.options.hint).toContain('wikibase:label');
+    expect(error.options.action).toContain('60000');
+    expect(error.options.details?.['label_service']).toBe(true);
   }, 20000);
 });

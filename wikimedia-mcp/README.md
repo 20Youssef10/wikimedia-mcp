@@ -1,15 +1,17 @@
-# Wikimedia MCP — Phase 1 + Phase 2 (read-only)
+# Wikimedia MCP — Phase 1 + Phase 2 + Phase 3 (read-only)
 
 A TypeScript implementation of the frozen Phase 1 contract (`09-implementation-contract.md`,
-v1.0.1) plus the frozen Phase 2 Group B contract (`10-phase2-contract.md`, v2.0.0),
+v1.0.1), the frozen Phase 2 Group B contract (`10-phase2-contract.md`, v2.0.0)
+and the frozen Phase 3 Group C/F contract (`11-phase3-contract.md`, v3.0.0),
 targeting **MCP 2026-07-28** (stateless, `server/discover`, per-request `_meta`,
 routing headers, `resultType`/`ttlMs`/`cacheScope`).
 
-**Fifteen read-only tools:** the nine Phase 1 Group A tools (`search`,
+**Twenty read-only tools:** the nine Phase 1 Group A tools (`search`,
 `get_summary`, `get_page`, `get_sections`, `get_related_pages`, `get_media`,
-`get_languages`, `get_random_page`, `get_feed`) and the six Phase 2 Group B
-(Wikidata) tools listed below. Both **stdio** and **Streamable HTTP** transports
-are supported. No write tools, no Enterprise APIs, no change notifications
+`get_languages`, `get_random_page`, `get_feed`), the six Phase 2 Group B
+(Wikidata) tools and the five Phase 3 tools (three Group C metrics, two Group F
+media) listed below. Both **stdio** and **Streamable HTTP** transports are
+supported. No write tools, no Enterprise APIs, no change notifications
 (`subscriptions/listen` returns `-32601`).
 
 > SDK note: the 2026-07-28 implementation is the v2 SDK, which ships as two
@@ -77,12 +79,34 @@ WDQS keys** and adds no new configuration key.
 - `WIKIDATA_SPARQL_TIMEOUT_MS ≤ 60000`; `WIKIDATA_SPARQL_MAX_ROWS` and
   `_MAX_QUERY_LENGTH` must be positive. The advertised `wikidata_sparql_query`
   schema is regenerated from these caps at boot so schema and guard cannot drift.
+- **Label-service deadlines:** `SERVICE wikibase:label` is the one known slow
+  WDQS path (it resolves labels after the main pattern). A live query at
+  `timeout_ms=30000` otherwise fails with `query_timeout` even though the
+  contract permits up to 60000 ms. `wikidata_sparql_query` therefore *uses* the
+  full 60000 ms hard cap for guarded label-service queries whose `timeout_ms`
+  is below it, reports `effective_timeout_ms`, and adds a non-fatal warning
+  (`label-service query: timeout_ms raised …`). Non-label queries keep the
+  requested deadline. The global 60 s cap is **never raised**, and if a label
+  query still times out the `query_timeout` error names `wikibase:label` as the
+  likely cause instead of suggesting a deadline above the cap. Detection is
+  token-based, so a `SERVICE wikibase:label` string inside a comment or literal
+  does not trigger the bump.
 - WDQS concurrency is a dedicated semaphore of `min(2, CONCURRENCY_LIMIT)`
   nested inside the global `p-limit(3)`. Identical effective queries are cached
   for `min(300000, METADATA_CACHE_TTL_MS)` ms.
 - `WIKIDATA_SPARQL_FALLBACKS` is an ordered comma-separated list. On 401/403/
   404/other-5xx/timeout the next endpoint is tried; 429/503 **stay** on the same
   endpoint and honour `Retry-After` (≥ `RETRY_AFTER_FALLBACK_MS` when absent).
+
+**Phase 3 adds zero configuration keys.** The three existing Attribution keys
+are reused as-is: `ATTRIBUTION_API_VERSION` (default `v0-beta`, pattern
+`^v[0-9]+(?:-[a-z0-9]+)?$`; `v1` is accepted but still falls back because the
+live `v1` path returns `404 rest-no-match`), `ATTRIBUTION_FALLBACKS` (allowed
+tokens exactly `rest-bare,action-rightsinfo,action-imageinfo`) and
+`ATTRIBUTION_DISCLAIMER` (injected verbatim into every media result). An
+empty/malformed version or an unknown fallback token terminates boot. Date caps
+(`MIN_DATE`, `MAX_SPAN`), project aliases, the licence URL map and Class M/T/I
+pacing are version-controlled code constants, not environment variables.
 
 ---
 
@@ -146,6 +170,43 @@ and VS Code's documented config migration (editor-managed form removed Feb
 | `wikidata_resolve_external_id` | exactly one of `scheme`+`id` or `site`+`title` | DOI/PMID/ORCID/OpenAlex/IMDb or sitelink → QID via bounded WDQS. |
 | `wikidata_sparql_query` | `query` | Portable SPARQL 1.1 SELECT; local guard + mandatory LIMIT + endpoint fallback. |
 
+**Phase 3 — Metrics (Group C):**
+
+| Tool | Required | Purpose |
+|---|---|---|
+| `get_pageviews` | `article`, `start`, `end` | Daily/hourly/weekly/monthly page views for one article over a bounded, completed UTC range. Supports dotted Analytics codes and Phase 1 aliases (`enwiki` → `en.wikipedia`, `commonswiki` → `commons.wikimedia`). Empty data is `results: []` with `count: 0`. |
+| `get_most_read` | `date` | Most-read articles of one completed UTC day (`YYYY-MM-DD`), rank-ordered, with allowlisted article URLs. `limit` 1–100. |
+| `get_unique_devices` | `start`, `end` | **Project-wide** cookie-based device reach estimate (`devices`, `offset`, `underestimate` + a `meaning` string). NOT per-article and NOT pageviews. `daily`/`monthly` only; `all-sites`/`desktop-site`/`mobile-site`. |
+
+All three metrics tools enforce local, zero-request date guards: explicit
+completed dates only (no `today`/future), `end ≤ yesterday UTC`, earliest date
+`20150101` (`20160101` for most-read), granularity-aligned timestamps (weekly
+Mondays, monthly the 1st) and bounded spans (hourly 24 h, daily 366 d, weekly
+730 d, monthly 3650 d). Breaches return `invalid_date_range` with
+`details.limits`. Metrics are **CC0 1.0** data with `attribution.required: false`
+and an `endpoint` reproducing the exact request; linked article titles and
+content keep their own licences.
+
+**Phase 3 — Commons media (Group F):**
+
+| Tool | Required | Purpose |
+|---|---|---|
+| `get_file_metadata` | `filename` | Full, compliance-oriented view: `author`, `credit`, `brand_marks`, `wiki`, `restrictions`, per-file licence and technical metadata. `include_brand_marks` (default true). |
+| `get_image_info` | `filename` | Compact machine-readable projection: `url`, `thumb_url`, `mime`, dimensions, `size`, per-file licence short/URL and attribution. |
+
+Both tools accept optional `project` (default `commonswiki`) and `thumb_width`
+(40–1200, default 320), require a `File:`-prefixed title, and share **one**
+resolve pipeline: Attribution API `v0-beta` `essential.*` signals (primary) →
+Action API `imageinfo`/`extmetadata` enrichment → media-filtered fallbacks.
+The site-wide CC BY-SA 4.0 licence is **never** substituted for a per-file
+licence: an unmapped licence URL is `null` plus a warning (resolved via a small
+static deed map where possible), `action-rightsinfo` is always skipped with a
+recorded warning, HTML in `extmetadata` is stripped/entity-decoded and returned
+as untrusted data, and remote media (`imagerepository != local`) skips the beta
+call entirely. Every media result carries `license`, `author` (possibly `null`
+with a warning), `attribution` (with `ATTRIBUTION_DISCLAIMER` verbatim), `source`,
+`attribution_source`, `warnings` and `resultType: "complete"`.
+
 All nine Phase 1 tools accept optional `lang` (default `en`) and `project`
 (default `wikipedia`).
 Project aliases include `wiki`/`wp`, `commonswiki`, `wikidatawiki`, Wikimedia
@@ -159,7 +220,10 @@ preserve `wprov=afsw1`. All Wikidata results carry CC0 1.0 (`attribution.require
 false`), a `qid` (or `null` for list/SPARQL results), and `revision`/`timestamp`
 from Wikibase REST `ETag`/`Last-Modified`; SPARQL results use
 `source: "wikidata:sparql"` and an `endpoint` reproducing the effective query.
-Returned wiki/Wikidata text is **untrusted data**, never instructions.
+Phase 3 metrics carry `source: "wikimedia:analytics"`, a CC0 1.0 licence block
+and an `endpoint`; Phase 3 media carry a per-file licence block, `author` and
+`attribution_source`. Returned wiki/Wikidata/media text is **untrusted data**,
+never instructions.
 
 **Errors** are actionable (`code`, `message`, `retryable`,
 `retry_after_seconds`, `hint`, `action`, `details`) and never leak raw HTTP
@@ -215,16 +279,26 @@ M3/M4 load tests are in `tests/live` and are skipped by default
 - The real nightly live gate (330 calls, M1–M4) is skipped by default; run
   `npm run build && WMCP_LIVE=1 npx vitest run tests/live/live.test.ts` off-peak.
   Metric computation is enforced fixture-backed in CI. `TC-A-014` (429 → retry)
-  runs in the merge gate.
-- Groups C–G corpus cases target tools that ship in later phases and are
-  documented as out of scope in the corpus test. Group B fixtures and AC-33…
-  AC-59 run in the merge gate; the live cases (AC-42/45/59, TC-B-001/003/005/
-  008/030) run nightly with `WMCP_LIVE=1`.
+  runs in the merge gate. Every nightly run (pass, fail, or startup failure)
+  writes `reports/nightly-live.json` (gitignored) with the timestamp, call
+  counts, per-tool success/p95, M1–M6 pass flags, the M4 429 count, peak
+  concurrency, `overallPass` and failure details; the human-readable
+  `[nightly]` console diagnostics are unchanged. Set
+  `WMCP_NIGHTLY_REPORT_PATH` to override the output path.
+- Groups D, E and G corpus cases target tools that ship in later phases and
+  are documented as out of scope. Group B fixtures and AC-33…AC-59, plus
+  Group C/F fixtures and AC-60…AC-94 (except nightly live AC-71/72/92), run in
+  the merge gate. The live cases (AC-42/45/59, TC-B-001/003/005/008/030,
+  TC-C-001/002, TC-F-001) run nightly with `WMCP_LIVE=1`.
 - The independent `/tmp/opencode/qa-mcp-smoke.mjs` and `qa-mcp-http.mjs` scripts
-  assert *exactly nine* tools (a Phase 1 invariant). With Phase 2 registered
-  they report 14/15 and 9/10 respectively: only the tool-count check differs.
-  They are intentionally left unmodified; the in-repo contract tests assert the
-  full 15-tool catalogue.
+  assert *exactly fifteen* tools (the Phase 1 + Phase 2 invariant). With Phase 3
+  registered they report 19/20 and 14/15 respectively: only the tool-count
+  check differs. They are intentionally left unmodified; the in-repo contract
+  tests assert the full 20-tool catalogue.
+- Group C/F keep a separate nightly load profile (`CF-M3` p95 budgets and
+  `CF-M4` 429-count == 0). Phase 3 tools do **not** feed the Phase 1 M3/M4 or
+  Phase 2 B-M3/B-M4 gates. No live Analytics/Attribution/imageinfo call runs in
+  the fixture-only merge gate (`AC-71`, `AC-72`, `AC-92` are nightly live).
 - Language variants without their own wiki (`zh-hans`, `pt-br`, ...) are routed
   to their real base-language host; the full requested code is retained in
   `lang`/`source`. Codes with real wikis (`be-tarask`, `zh-min-nan`, `zh-tw`)

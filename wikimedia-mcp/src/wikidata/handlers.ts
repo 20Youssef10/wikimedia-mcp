@@ -6,7 +6,7 @@ import { enforceResultLimit } from '../protocol/limits.js';
 import { UpstreamError } from '../upstream/retry.js';
 import {
   SparqlExecutionError, SparqlGuardError, SparqlParseError, SparqlRunner,
-  guardQuery, type SparqlSuccess,
+  LABEL_SERVICE_TIMEOUT_MS, guardQuery, usesLabelService, type SparqlSuccess,
 } from '../upstream/wikidata-sparql.js';
 import { WikibaseClient } from './wikibase.js';
 import { WikidataToolError, wdError } from './errors.js';
@@ -532,9 +532,20 @@ export function createWikidataHandlers(
         const query = String(input['query']);
         const guard = guardQuery(query, config.wikidataSparql.maxQueryLength, config.wikidataSparql.maxRows,
           input['limit'] === undefined ? undefined : Number(input['limit']));
+        const requestedTimeoutMs = Number(input['timeout_ms']);
+        // Label-service queries are the known slow path. Spend the full,
+        // already-permitted 60 s hard cap on them instead of failing early at
+        // e.g. 30 s, and make the raised deadline visible (non-fatal) to the
+        // caller. The global cap itself is never increased.
+        const labelService = usesLabelService(guard.effectiveQuery);
+        const effectiveTimeoutMs = labelService && requestedTimeoutMs < LABEL_SERVICE_TIMEOUT_MS
+          ? LABEL_SERVICE_TIMEOUT_MS : requestedTimeoutMs;
+        const timeoutWarnings: string[] = effectiveTimeoutMs > requestedTimeoutMs
+          ? [`label-service query: timeout_ms raised from ${requestedTimeoutMs} ms to ${effectiveTimeoutMs} ms (60 s hard cap)`]
+          : [];
         const result = await sparql.execute(guard.effectiveQuery, guard.effectiveLimit, {
           ...(childSignal === undefined ? {} : { signal: childSignal }),
-          timeoutMs: Number(input['timeout_ms']),
+          timeoutMs: effectiveTimeoutMs,
         });
         return {
           vars: result.vars,
@@ -543,7 +554,8 @@ export function createWikidataHandlers(
           truncated: result.truncated,
           endpoint: result.endpoint,
           effective_limit: result.effective_limit,
-          warnings: [...guard.warnings, ...result.warnings],
+          effective_timeout_ms: effectiveTimeoutMs,
+          warnings: [...guard.warnings, ...result.warnings, ...timeoutWarnings],
           ...wikidataProvenance({
             qid: null,
             endpoint: result.endpoint,

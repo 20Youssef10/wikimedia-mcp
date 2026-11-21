@@ -9,12 +9,22 @@ import { IDEMPOTENT_TOOLS, PHASE1_TOOL_NAMES, TOOL_DESCRIPTIONS, TOOL_SCHEMAS } 
 import { registerMinimalResources } from '../resources/index.js';
 import { registerMinimalPrompts } from '../prompts/index.js';
 import { GROUP_B_DESCRIPTIONS, GROUP_B_TOOL_NAMES, buildGroupBSchemas } from '../../wikidata/schemas.js';
+import { GROUP_C_DESCRIPTIONS, GROUP_C_SCHEMAS, GROUP_C_TOOL_NAMES } from '../../metrics/schemas.js';
+import { GROUP_F_DESCRIPTIONS, GROUP_F_SCHEMAS, GROUP_F_TOOL_NAMES } from '../../media/schemas.js';
+
+/** Phase 3 names — all five are pure reads and idempotent (§3.6). */
+const GROUP_CF_TOOL_NAMES: readonly string[] = [...GROUP_C_TOOL_NAMES, ...GROUP_F_TOOL_NAMES];
 
 /**
- * Static, integrity-checked tool catalogue (SR-12): nine Phase 1 tools plus
- * the six frozen Phase 2 Group B tools. No write/Enterprise tool is registered.
+ * Static, integrity-checked tool catalogue (SR-12): nine Phase 1 tools, six
+ * Phase 2 Group B tools and five Phase 3 Group C/F tools. No write/Enterprise
+ * tool is registered.
  */
-export const TOOL_NAMES: readonly string[] = [...PHASE1_TOOL_NAMES, ...GROUP_B_TOOL_NAMES];
+export const TOOL_NAMES: readonly string[] = [
+  ...PHASE1_TOOL_NAMES,
+  ...GROUP_B_TOOL_NAMES,
+  ...GROUP_CF_TOOL_NAMES,
+];
 
 /**
  * Extract the inbound cancellation signal from the SDK tool-handler context.
@@ -55,10 +65,14 @@ export function buildMcpServer(config: Config, client: WikimediaClient): McpServ
 
   const handlers = createHandlers(client, config);
   const groupSchemas = buildGroupBSchemas(config);
-  const descriptions: Record<string, string> = { ...TOOL_DESCRIPTIONS, ...GROUP_B_DESCRIPTIONS };
+  const descriptions: Record<string, string> = {
+    ...TOOL_DESCRIPTIONS, ...GROUP_B_DESCRIPTIONS, ...GROUP_C_DESCRIPTIONS, ...GROUP_F_DESCRIPTIONS,
+  };
   const schemas: Record<string, StandardSchemaWithJSON> = {
     ...(TOOL_SCHEMAS as unknown as Record<string, StandardSchemaWithJSON>),
     ...(groupSchemas as unknown as Record<string, StandardSchemaWithJSON>),
+    ...(GROUP_C_SCHEMAS as unknown as Record<string, StandardSchemaWithJSON>),
+    ...(GROUP_F_SCHEMAS as unknown as Record<string, StandardSchemaWithJSON>),
   };
   for (const name of TOOL_NAMES) {
     const schema = schemas[name];
@@ -75,6 +89,7 @@ export function buildMcpServer(config: Config, client: WikimediaClient): McpServ
           destructiveHint: false,
           openWorldHint: true,
           idempotentHint: GROUP_B_TOOL_NAMES.includes(name as typeof GROUP_B_TOOL_NAMES[number])
+            || GROUP_CF_TOOL_NAMES.includes(name)
             || IDEMPOTENT_TOOLS.has(name),
         },
       },

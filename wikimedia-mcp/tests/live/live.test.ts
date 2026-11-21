@@ -7,6 +7,9 @@ import {
   computeMetrics, LiveGateRunner, nearestRankP95, STANDARD_LIVE_CONFIG, toolClass,
   type Observation,
 } from '../../src/observability/live-gate.js';
+import {
+  buildNightlyReport, writeNightlyReport, type ReportFailure,
+} from '../../src/observability/nightly-report.js';
 import { phase1LiveCases, type CorpusCase } from '../corpus-loader.js';
 
 /**
@@ -83,133 +86,181 @@ function buildCases(): CorpusCase[] {
 describeLive('nightly live gate — Phase 1 Group A (M1–M4)', () => {
   let child: ChildProcess | undefined;
   let url: string;
+  let reportWritten = false;
+  let startupFailure: string | undefined;
 
   beforeAll(async () => {
-    if (!existsSync(ENTRY)) throw new Error('Run `npm run build` before the nightly live gate');
-    const port = await freePort();
-    url = `http://127.0.0.1:${port}/mcp`;
-    child = spawn(process.execPath, [ENTRY], {
-      env: {
-        ...process.env,
-        MCP_TRANSPORT: 'streamable-http',
-        MCP_HTTP_HOST: '127.0.0.1',
-        MCP_HTTP_PORT: String(port),
-        USER_AGENT: 'WikiMCP-Nightly/1.0 (https://example.org/nightly; ops@example.org)',
-        LOG_LEVEL: 'error',
-      },
-      stdio: ['ignore', 'ignore', 'pipe'],
-    });
-    for (let attempt = 0; attempt < 40; attempt += 1) {
-      try {
-        const probe = await fetch(url, { method: 'GET' });
-        if (probe.status === 405) return;
-      } catch { /* not listening yet */ }
-      await new Promise((resolve) => setTimeout(resolve, 250));
+    try {
+      if (!existsSync(ENTRY)) throw new Error('Run `npm run build` before the nightly live gate');
+      const port = await freePort();
+      url = `http://127.0.0.1:${port}/mcp`;
+      child = spawn(process.execPath, [ENTRY], {
+        env: {
+          ...process.env,
+          MCP_TRANSPORT: 'streamable-http',
+          MCP_HTTP_HOST: '127.0.0.1',
+          MCP_HTTP_PORT: String(port),
+          USER_AGENT: 'WikiMCP-Nightly/1.0 (https://example.org/nightly; ops@example.org)',
+          LOG_LEVEL: 'error',
+        },
+        stdio: ['ignore', 'ignore', 'pipe'],
+      });
+      for (let attempt = 0; attempt < 40; attempt += 1) {
+        try {
+          const probe = await fetch(url, { method: 'GET' });
+          if (probe.status === 405) return;
+        } catch { /* not listening yet */ }
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+      throw new Error('nightly server did not start');
+    } catch (error) {
+      startupFailure = error instanceof Error ? error.message : String(error);
+      throw error;
     }
-    throw new Error('nightly server did not start');
   }, 30000);
 
-  afterAll(() => { child?.kill('SIGTERM'); });
+  afterAll(() => {
+    // Even a startup failure or an interrupted run must leave durable evidence.
+    if (!reportWritten) {
+      const report = buildNightlyReport({
+        observations: [],
+        metrics: computeMetrics([]),
+        peakConcurrency: 0,
+        failures: [{ id: 'nightly-startup', detail: startupFailure ?? 'the nightly run did not reach the report writer' }],
+      });
+      const writtenPath = writeNightlyReport(report);
+      console.log(`[nightly] JSON report (incomplete run): ${writtenPath}`);
+      reportWritten = true;
+    }
+    child?.kill('SIGTERM');
+  });
 
   it('runs 330 live calls with 2 req/s pacing and concurrency <= 3', async () => {
     const cases = buildCases();
     expect(cases.length).toBe(STANDARD_LIVE_CONFIG.totalCalls);
     const runner = new LiveGateRunner(STANDARD_LIVE_CONFIG);
-    const failureDetails = new Map<string, string>();
+    const failures: ReportFailure[] = [];
+    let observations: Observation[] = [];
+    let report = computeMetrics(observations, STANDARD_LIVE_CONFIG);
 
-    const jobs = cases.map((testCase) => async (): Promise<Observation> => {
-      const start = performance.now();
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'MCP-Protocol-Version': '2026-07-28',
-        'Mcp-Method': 'tools/call',
-        'Mcp-Name': testCase.tool,
-      };
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          jsonrpc: '2.0', id: 1, method: 'tools/call',
-          params: {
-            name: testCase.tool,
-            arguments: testCase.params,
-            _meta: {
-              'io.modelcontextprotocol/protocolVersion': '2026-07-28',
-              'io.modelcontextprotocol/clientInfo': { name: 'nightly', version: '1.0.0' },
-              'io.modelcontextprotocol/clientCapabilities': {},
-            },
-          },
-        }),
+    const persist = (metrics = report): ReturnType<typeof buildNightlyReport> => {
+      const persisted = buildNightlyReport({
+        observations, metrics, peakConcurrency: runner.peakConcurrency, failures,
       });
-      const text = await response.text();
-      const parsed = JSON.parse(text) as Record<string, unknown>;
-      const result = parsed['result'] as Record<string, unknown> | undefined;
-      const isError = result?.['isError'] === true || parsed['error'] !== undefined;
-      const error = result?.['structuredContent'] as Record<string, unknown> | undefined;
-      const errorCode = typeof error?.['code'] === 'string' ? error['code'] : '';
-      if (!response.ok || isError) failureDetails.set(testCase.id, `status=${response.status} ${text.slice(0, 400)}`);
-      // Provenance must be checked on the PARSED result, not the raw JSON-RPC
-      // text: tool content is a JSON string with escaped quotes, so a naive
-      // /"license"/ regex on raw text reports false negatives (M5 bug).
-      const structured = result?.['structuredContent'] as Record<string, unknown> | undefined;
-      let contentObject = structured;
-      if (contentObject === undefined) {
-        const content = result?.['content'] as Array<{ type?: string; text?: string }> | undefined;
-        const firstText = content?.find((c) => c.type === 'text')?.text;
-        if (firstText !== undefined) {
-          try { contentObject = JSON.parse(firstText) as Record<string, unknown>; } catch { /* not JSON content */ }
+      const writtenPath = writeNightlyReport(persisted);
+      reportWritten = true;
+      console.log(`[nightly] JSON report: ${writtenPath} (overallPass=${persisted.overallPass})`);
+      return persisted;
+    };
+
+    try {
+      const jobs = cases.map((testCase) => async (): Promise<Observation> => {
+        const start = performance.now();
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'MCP-Protocol-Version': '2026-07-28',
+          'Mcp-Method': 'tools/call',
+          'Mcp-Name': testCase.tool,
+        };
+        const response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            jsonrpc: '2.0', id: 1, method: 'tools/call',
+            params: {
+              name: testCase.tool,
+              arguments: testCase.params,
+              _meta: {
+                'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+                'io.modelcontextprotocol/clientInfo': { name: 'nightly', version: '1.0.0' },
+                'io.modelcontextprotocol/clientCapabilities': {},
+              },
+            },
+          }),
+        });
+        const text = await response.text();
+        const parsed = JSON.parse(text) as Record<string, unknown>;
+        const result = parsed['result'] as Record<string, unknown> | undefined;
+        const isError = result?.['isError'] === true || parsed['error'] !== undefined;
+        const error = result?.['structuredContent'] as Record<string, unknown> | undefined;
+        const errorCode = typeof error?.['code'] === 'string' ? error['code'] : '';
+        if (!response.ok || isError) failures.push({ id: testCase.id, detail: `status=${response.status} ${text.slice(0, 400)}` });
+        // Provenance must be checked on the PARSED result, not the raw JSON-RPC
+        // text: tool content is a JSON string with escaped quotes, so a naive
+        // /"license"/ regex on raw text reports false negatives (M5 bug).
+        const structured = result?.['structuredContent'] as Record<string, unknown> | undefined;
+        let contentObject = structured;
+        if (contentObject === undefined) {
+          const content = result?.['content'] as Array<{ type?: string; text?: string }> | undefined;
+          const firstText = content?.find((c) => c.type === 'text')?.text;
+          if (firstText !== undefined) {
+            try { contentObject = JSON.parse(firstText) as Record<string, unknown>; } catch { /* not JSON content */ }
+          }
         }
+        return {
+          id: testCase.id,
+          tool: testCase.tool,
+          toolClass: toolClass(testCase.tool),
+          durationMs: performance.now() - start,
+          ok: response.ok && !isError,
+          singleCall: true,
+          hasProvenance: contentObject !== undefined && 'license' in contentObject && 'attribution' in contentObject,
+          isContent: true,
+          errorActionable: !isError || (['code', 'message', 'retryable', 'action'].every((key) => key in (error ?? {}))),
+          upstream429: errorCode === 'rate_limited' || /\b429\b/.test(text),
+        };
+      });
+
+      observations = await runner.run(jobs);
+      report = computeMetrics(observations, STANDARD_LIVE_CONFIG);
+
+      // Diagnosability: a failing gate must say which tools failed and why.
+      const measured = observations.filter((o) => !o.warmup);
+      const byTool = new Map<string, { ok: number; total: number }>();
+      for (const o of measured) {
+        const entry = byTool.get(o.tool) ?? { ok: 0, total: 0 };
+        entry.total += 1; if (o.ok) entry.ok += 1;
+        byTool.set(o.tool, entry);
       }
-      return {
-        id: testCase.id,
-        tool: testCase.tool,
-        toolClass: toolClass(testCase.tool),
-        durationMs: performance.now() - start,
-        ok: response.ok && !isError,
-        singleCall: true,
-        hasProvenance: contentObject !== undefined && 'license' in contentObject && 'attribution' in contentObject,
-        isContent: true,
-        errorActionable: !isError || (['code', 'message', 'retryable', 'action'].every((key) => key in (error ?? {}))),
-        upstream429: errorCode === 'rate_limited' || /\b429\b/.test(text),
-      };
-    });
-
-    const observations = await runner.run(jobs);
-    const report = computeMetrics(observations, STANDARD_LIVE_CONFIG);
-
-    // Diagnosability: a failing gate must say which tools failed and why.
-    const measured = observations.filter((o) => !o.warmup);
-    const byTool = new Map<string, { ok: number; total: number }>();
-    for (const o of measured) {
-      const entry = byTool.get(o.tool) ?? { ok: 0, total: 0 };
-      entry.total += 1; if (o.ok) entry.ok += 1;
-      byTool.set(o.tool, entry);
-    }
-    console.log('[nightly] per-tool success:', [...byTool.entries()].map(([t, v]) => `${t}=${v.ok}/${v.total}`).join(' '));
-    const p95ByTool = new Map<string, number[]>();
-    for (const o of measured.filter((item) => item.ok)) {
-      const arr = p95ByTool.get(o.tool) ?? []; arr.push(o.durationMs); p95ByTool.set(o.tool, arr);
-    }
-    console.log('[nightly] per-tool p95(ms):', [...p95ByTool.entries()]
-      .map(([t, arr]) => `${t}=${nearestRankP95(arr).toFixed(0)}`).join(' '));
-    console.log('[nightly] M1 rate:', report.m1.rate, 'M4 429s:', report.m4.count429,
-      'p95R:', report.m3.p95R, 'p95A:', report.m3.p95A, 'p95Global:', report.m3.p95Global,
-      'M5 provenance:', report.m5.coverage, 'M6 actionable:', report.m6.coverage);
-    for (const [id, detail] of [...failureDetails.entries()].slice(0, 12)) {
-      console.log(`[nightly] FAIL ${id}: ${detail}`);
+      console.log('[nightly] per-tool success:', [...byTool.entries()].map(([t, v]) => `${t}=${v.ok}/${v.total}`).join(' '));
+      const p95ByTool = new Map<string, number[]>();
+      for (const o of measured.filter((item) => item.ok)) {
+        const arr = p95ByTool.get(o.tool) ?? []; arr.push(o.durationMs); p95ByTool.set(o.tool, arr);
+      }
+      console.log('[nightly] per-tool p95(ms):', [...p95ByTool.entries()]
+        .map(([t, arr]) => `${t}=${nearestRankP95(arr).toFixed(0)}`).join(' '));
+      console.log('[nightly] M1 rate:', report.m1.rate, 'M4 429s:', report.m4.count429,
+        'p95R:', report.m3.p95R, 'p95A:', report.m3.p95A, 'p95Global:', report.m3.p95Global,
+        'M5 provenance:', report.m5.coverage, 'M6 actionable:', report.m6.coverage);
+      for (const failure of failures.slice(0, 12)) {
+        console.log(`[nightly] FAIL ${failure.id}: ${failure.detail}`);
+      }
+    } catch (error) {
+      failures.push({ id: 'nightly-run', detail: error instanceof Error ? error.message : String(error) });
+      throw error;
+    } finally {
+      // Pass or fail, persist the full evidence set before assertions run.
+      persist();
     }
 
-    expect(report.warmup).toBe(30);
-    expect(runner.peakConcurrency).toBeLessThanOrEqual(3);
-    expect(report.m4.count429).toBe(0);
-    expect(report.m1.rate).toBeGreaterThanOrEqual(0.95);
-    expect(report.m2.rate).toBeGreaterThanOrEqual(0.70);
-    expect(report.m3.p95R).toBeLessThanOrEqual(STANDARD_LIVE_CONFIG.budgets.R);
-    expect(report.m3.p95A).toBeLessThanOrEqual(STANDARD_LIVE_CONFIG.budgets.A);
-    expect(report.m3.p95Global).toBeLessThan(STANDARD_LIVE_CONFIG.budgets.global);
-    expect(report.m3.samplesR, 'Class R must meet minSamplesPerClass').toBeGreaterThanOrEqual(STANDARD_LIVE_CONFIG.minSamplesPerClass);
-    expect(report.m3.samplesA, 'Class A must meet minSamplesPerClass').toBeGreaterThanOrEqual(STANDARD_LIVE_CONFIG.minSamplesPerClass);
-    expect(report.m3.pass).toBe(true);
-    expect(report.overallPass).toBe(true);
+    try {
+      expect(report.warmup).toBe(30);
+      expect(runner.peakConcurrency).toBeLessThanOrEqual(3);
+      expect(report.m4.count429).toBe(0);
+      expect(report.m1.rate).toBeGreaterThanOrEqual(0.95);
+      expect(report.m2.rate).toBeGreaterThanOrEqual(0.70);
+      expect(report.m3.p95R).toBeLessThanOrEqual(STANDARD_LIVE_CONFIG.budgets.R);
+      expect(report.m3.p95A).toBeLessThanOrEqual(STANDARD_LIVE_CONFIG.budgets.A);
+      expect(report.m3.p95Global).toBeLessThan(STANDARD_LIVE_CONFIG.budgets.global);
+      expect(report.m3.samplesR, 'Class R must meet minSamplesPerClass').toBeGreaterThanOrEqual(STANDARD_LIVE_CONFIG.minSamplesPerClass);
+      expect(report.m3.samplesA, 'Class A must meet minSamplesPerClass').toBeGreaterThanOrEqual(STANDARD_LIVE_CONFIG.minSamplesPerClass);
+      expect(report.m3.pass).toBe(true);
+      expect(report.overallPass).toBe(true);
+    } catch (error) {
+      // Re-persist with the assertion failure and a consistent overallPass.
+      failures.push({ id: 'nightly-assertion', detail: error instanceof Error ? error.message : String(error) });
+      persist({ ...report, overallPass: false });
+      throw error;
+    }
   }, 400000);
 });

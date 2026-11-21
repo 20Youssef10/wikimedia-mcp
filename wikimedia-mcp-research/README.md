@@ -51,6 +51,8 @@ Where a claim's precision was previously overstated or understated, the current 
 | 2026-11-21 (implementation contract) | Added report 09, closing all four readiness items: frozen Phase 1 tool list and JSON schemas (two ambiguities resolved), load profile for M3/M4, 32 binary MCP acceptance criteria, and the **TypeScript** stack decision. Enterprise data APIs excluded from implementation (no subscription); Python path rejected. Corrected a precision issue in the acceptance criteria: missing required `_meta` fields map to `-32602`, while `-32022` is for unsupported versions and `-32021` for capability shortfalls. |
 | 2026-11-21 (implementation) | Built the Phase 1 server in `../wikimedia-mcp/`. Found and corrected a contract error: `@modelcontextprotocol/sdk` v1 does not implement 2026-07-28; the real v2 packages `@modelcontextprotocol/server`/`client@2.4.0` are pinned and verified. A principal-code-review REQUEST_CHANGES cycle fixed six blocking defects plus three recommended ones. Final gates: build, typecheck, lint, 132 tests passing, and independent QA 15/15 (stdio), 10/10 (HTTP), 9/9 (defect regression). |
 | 2026-11-21 (acceptance & Phase 2) | Nightly live gate executed off-peak and **PASSED** after fixing a contract contradiction (147 samples in Class R vs a 150-sample minimum) and a provenance-detection bug — 330 live calls, M1=1.0, M4=0 429s, M5/M6=1.0. Host compatibility verified: Grok and OpenCode (with mandatory `protocol:"2026-07-28"`) pass; Cursor/Codex are legacy-client incompatibilities, Cline untested. Phase 1 merged as tag `phase-1-merged`. Phase 2 (Group B Wikidata: six tools, bounded SPARQL, external-ID map, AC-33..AC-59, 22 new corpus cases) implemented with 218 tests passing and independent QA green; merged as tag `phase-2-merged`. |
+| 2026-11-21 (rough edges) | Nightly gate now persists a structured JSON report (`reports/nightly-live.json`) on every run; SPARQL label-service queries get a documented timeout bump to the 60 s cap with a warning; all three opt-in Group B live cases executed and passed (20/20). Independent QA 15/15, 10/10, 9/9. |
+| 2026-11-21 (Phase 3) | Added report 11 and implemented Groups C+F: `get_pageviews`, `get_most_read`, `get_unique_devices`, `get_file_metadata`, `get_image_info` (20 total tools). Attribution beta primary with Action `extmetadata` fallback, per-file licences, zero new config keys, AC-60…AC-94, 17 new corpus cases (84 total). Live smoke verified against Analytics and Commons. 278 tests passing, independent QA green. |
 
 ## Reports
 
@@ -65,7 +67,9 @@ Where a claim's precision was previously overstated or understated, the current 
 | `07-test-strategy.md` | Test levels, CI gates, fixture policy, write-tool testing | [Design] |
 | `08-threat-model.md` | STRIDE threat model, 22 threats, 12 write-enablement gates | [Design] |
 | `09-implementation-contract.md` | Frozen Phase 1 tool schemas, TypeScript stack, load profile, 32 acceptance criteria | **Frozen v1.0.1 — ready to implement** |
-| `test-corpus.json` | 45 machine-readable test cases (A–G, all categories) | Validated JSON |
+| `10-phase2-contract.md` | Frozen Phase 2 (Wikidata/Group B) tool contract, AC-33…AC-59 | Frozen |
+| `11-phase3-contract.md` | Frozen Phase 3 (metrics + Commons/Groups C+F) contract, AC-60…AC-94 | Frozen |
+| `test-corpus.json` | 84 machine-readable test cases (A–G, all categories) | Validated JSON |
 
 ## How to use these documents
 

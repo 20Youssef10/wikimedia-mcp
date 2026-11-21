@@ -13,6 +13,9 @@ import {
 } from '../../attribution/assemble.js';
 import type { ToolResponse, ToolPayload } from '../../types.js';
 import { createWikidataHandlers } from '../../wikidata/handlers.js';
+import { createMetricsHandlers } from '../../metrics/handlers.js';
+import { createMediaHandlers } from '../../media/handlers.js';
+import type { PacingClock } from '../../upstream/pacing.js';
 import {
   searchSchema, getSummarySchema, getPageSchema, getSectionsSchema, getRelatedPagesSchema,
   getMediaSchema, getLanguagesSchema, getRandomPageSchema, getFeedSchema, isValidFeedDate,
@@ -99,7 +102,7 @@ function requireOk(status: number, target: ResolveResult, title: string, backend
 export function createHandlers(
   client: WikimediaClient,
   config: Config,
-  options: { sleep?: (ms: number) => Promise<void>; now?: () => number } = {},
+  options: { sleep?: (ms: number) => Promise<void>; now?: () => number; clock?: PacingClock } = {},
 ) {
   async function run<TInput, TOutput>(
     name: string,
@@ -551,9 +554,15 @@ export function createHandlers(
     },
   };
 
-  // Phase 2 adds six read-only Group B tools; Phase 1 names/schemas/errors are
-  // untouched (AC-35). Neither group registers any write capability.
-  return { ...phase1Handlers, ...createWikidataHandlers(client, config, options) };
+  // Phase 2 adds six read-only Group B tools; Phase 3 adds five Group C/F
+  // tools. Phase 1 names/schemas/errors are untouched (AC-35/AC-63). Neither
+  // group registers any write capability.
+  return {
+    ...phase1Handlers,
+    ...createWikidataHandlers(client, config, options),
+    ...createMetricsHandlers(client, config, options),
+    ...createMediaHandlers(client, config, options),
+  };
 }
 
 function readMetadata(metadata: Record<string, unknown>, key: string): string {

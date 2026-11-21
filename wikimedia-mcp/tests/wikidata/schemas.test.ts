@@ -35,7 +35,8 @@ describe('AC-33 — Group B registration', () => {
     }
     // No write, Enterprise, guest or G-group tool is registered.
     expect(TOOL_NAMES.some((name) => /edit|upload|delete|enterprise/i.test(name))).toBe(false);
-    expect(TOOL_NAMES).toHaveLength(15);
+    // Phase 3 adds five Group C/F tools; the Phase 2 six are unchanged.
+    expect(TOOL_NAMES).toHaveLength(20);
   });
 
   it('advertises oneOf for resolve_external_id and config-derived SPARQL caps', () => {

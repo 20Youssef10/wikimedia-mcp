@@ -34,6 +34,10 @@ export type ToolErrorCode =
   | 'file_not_found'
   | 'invalid_title'
   | 'invalid_section'
+  // Phase 3 (Groups C/F) additive codes.
+  | 'invalid_article'
+  | 'invalid_date_range'
+  | 'attribution_unavailable'
   | 'rate_limited'
   | 'quota_exhausted'
   | 'upstream_unavailable'

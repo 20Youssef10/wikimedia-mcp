@@ -1825,6 +1825,401 @@
       },
       "mode": "live",
       "notes": "Nightly Class Q latency sample; not run in the merge gate."
+    },
+    {
+      "id": "TC-C-004",
+      "tool_group": "C",
+      "tool": "get_pageviews",
+      "params": {
+        "project": "en.wikipedia",
+        "article": "Earth",
+        "start": "2026110100",
+        "end": "20261103",
+        "granularity": "daily"
+      },
+      "category": "error",
+      "expected": {
+        "status": "error",
+        "required_fields": ["error.code", "error.message", "error.retryable"],
+        "constraints": [
+          "error.code == 'validation_error'",
+          "hourly timestamp shape rejected for daily granularity",
+          "zero outbound requests"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 3 AC-64/AC-65: malformed date shapes are rejected locally."
+    },
+    {
+      "id": "TC-C-005",
+      "tool_group": "C",
+      "tool": "get_pageviews",
+      "params": {
+        "project": "en.wikipedia",
+        "article": "Earth",
+        "start": "20200101",
+        "end": "20260101",
+        "granularity": "daily"
+      },
+      "category": "error",
+      "expected": {
+        "status": "error",
+        "required_fields": ["error.code", "error.message", "error.retryable", "error.details.limits"],
+        "constraints": [
+          "error.code == 'invalid_date_range'",
+          "over-cap span reports details.limits",
+          "zero outbound requests"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 3 AC-66: bounded range caps."
+    },
+    {
+      "id": "TC-C-006",
+      "tool_group": "C",
+      "tool": "get_pageviews",
+      "params": {
+        "project": "en.wikipedia",
+        "article": "Earth",
+        "start": "20261103",
+        "end": "20261110",
+        "granularity": "weekly"
+      },
+      "category": "error",
+      "expected": {
+        "status": "error",
+        "required_fields": ["error.code", "error.message", "error.retryable"],
+        "constraints": [
+          "error.code == 'invalid_date_range'",
+          "weekly dates must be Mondays",
+          "zero outbound requests"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 3 AC-65: weekly and monthly alignment."
+    },
+    {
+      "id": "TC-C-007",
+      "tool_group": "C",
+      "tool": "get_unique_devices",
+      "params": {
+        "project": "en.wikipedia",
+        "access_site": "all-sites",
+        "granularity": "monthly",
+        "start": "20230101",
+        "end": "20230101"
+      },
+      "category": "happy_path",
+      "expected": {
+        "status": "ok",
+        "required_fields": [
+          "project",
+          "access_site",
+          "granularity",
+          "results",
+          "results[0].devices",
+          "results[0].offset",
+          "results[0].underestimate",
+          "meaning",
+          "_meta"
+        ],
+        "constraints": [
+          "no article parameter",
+          "fixed historical date 20230101",
+          "single tool call resolves the task"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 3 AC-70/AC-74: project-scope reach estimate with uncertainty fields."
+    },
+    {
+      "id": "TC-C-008",
+      "tool_group": "C",
+      "tool": "get_most_read",
+      "params": {
+        "project": "en.wikipedia",
+        "date": "today"
+      },
+      "category": "error",
+      "expected": {
+        "status": "error",
+        "required_fields": ["error.code", "error.message", "error.retryable"],
+        "constraints": [
+          "error.code == 'invalid_date_range'",
+          "'today' and future dates rejected",
+          "zero outbound requests"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 3 AC-66: completed-period only."
+    },
+    {
+      "id": "TC-C-009",
+      "tool_group": "C",
+      "tool": "get_pageviews",
+      "params": {
+        "project": "enwiki",
+        "article": "Earth",
+        "start": "20261101",
+        "end": "20261103",
+        "granularity": "daily"
+      },
+      "category": "happy_path",
+      "expected": {
+        "status": "ok",
+        "required_fields": ["project", "article", "results", "_meta"],
+        "constraints": [
+          "enwiki resolves to en.wikipedia",
+          "commonswiki resolves to commons.wikimedia"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 3 AC-67: Phase 1 aliases normalised in reverse."
+    },
+    {
+      "id": "TC-C-010",
+      "tool_group": "C",
+      "tool": "get_pageviews",
+      "params": {
+        "project": "en.wikipedia",
+        "article": "Earth",
+        "start": "20261101",
+        "end": "20261103",
+        "granularity": "daily",
+        "_simulate": "429-retry-after-0"
+      },
+      "category": "resilience",
+      "expected": {
+        "status": "ok",
+        "required_fields": ["project", "results", "count", "_meta"],
+        "constraints": [
+          "HTTP 429 with Retry-After honoured on the same source",
+          "eventual success after bounded retry"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 3 AC-93: stay on source, honour Retry-After."
+    },
+    {
+      "id": "TC-C-011",
+      "tool_group": "C",
+      "tool": "get_pageviews",
+      "params": {
+        "project": "http://169.254.169.254",
+        "article": "Earth",
+        "start": "20261101",
+        "end": "20261103"
+      },
+      "category": "security",
+      "expected": {
+        "status": "error",
+        "required_fields": ["error.code", "error.message", "error.retryable"],
+        "constraints": [
+          "error.code == 'invalid_project'",
+          "zero outbound requests",
+          "no SSRF to a caller-supplied host"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 3 AC-67 / SR-3: host-shaped project rejected locally."
+    },
+    {
+      "id": "TC-F-004",
+      "tool_group": "F",
+      "tool": "get_file_metadata",
+      "params": {
+        "filename": "File:Commons-logo.svg",
+        "project": "commonswiki",
+        "_simulate": "beta-404"
+      },
+      "category": "happy_path",
+      "expected": {
+        "status": "ok",
+        "required_fields": [
+          "filename", "url", "license", "author", "attribution", "source",
+          "attribution_source", "warnings", "resultType", "_meta"
+        ],
+        "constraints": [
+          "beta 404 rest-no-match falls back to action-imageinfo",
+          "non-fatal warning emitted",
+          "no raw 404 body in error message"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 3 AC-76: beta miss fallback to per-file extmetadata."
+    },
+    {
+      "id": "TC-F-005",
+      "tool_group": "F",
+      "tool": "get_file_metadata",
+      "params": {
+        "filename": "File:Commons-logo.svg",
+        "project": "commonswiki",
+        "_simulate": "v1-404"
+      },
+      "category": "happy_path",
+      "expected": {
+        "status": "ok",
+        "required_fields": ["filename", "url", "license", "attribution", "source", "warnings", "_meta"],
+        "constraints": [
+          "ATTRIBUTION_API_VERSION=v1 404 rest-no-match triggers fallback",
+          "config-variant fixture"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 3 AC-62/AC-76: v1 accepted but falls back."
+    },
+    {
+      "id": "TC-F-006",
+      "tool_group": "F",
+      "tool": "get_image_info",
+      "params": {
+        "filename": "File:PublicDomainExample.png",
+        "project": "commonswiki",
+        "_simulate": "pd-license"
+      },
+      "category": "happy_path",
+      "expected": {
+        "status": "ok",
+        "required_fields": ["filename", "url", "license", "license.url", "license.source", "attribution", "warnings", "_meta"],
+        "constraints": [
+          "per-file public-domain licence emitted",
+          "site-wide CC BY-SA 4.0 URL never substituted",
+          "action-rightsinfo skipped with a recorded warning"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 3 AC-77/AC-82: per-file licence only."
+    },
+    {
+      "id": "TC-F-007",
+      "tool_group": "F",
+      "tool": "get_file_metadata",
+      "params": {
+        "filename": "File:InjectionCanary.png",
+        "project": "commonswiki",
+        "_simulate": "html-canary"
+      },
+      "category": "security",
+      "expected": {
+        "status": "ok",
+        "required_fields": ["filename", "author", "warnings", "attribution", "_meta"],
+        "constraints": [
+          "HTML <a> in Artist stripped",
+          "prompt-injection canary returned as data",
+          "no system prompt or token disclosed"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 3 AC-78/AC-88: untrusted extmetadata treated as data."
+    },
+    {
+      "id": "TC-F-008",
+      "tool_group": "F",
+      "tool": "get_file_metadata",
+      "params": {
+        "filename": "File:RemoteMedia.png",
+        "project": "commonswiki",
+        "_simulate": "remote"
+      },
+      "category": "happy_path",
+      "expected": {
+        "status": "ok",
+        "required_fields": ["filename", "url", "storage", "attribution_source", "warnings", "license", "attribution", "_meta"],
+        "constraints": [
+          "storage == 'remote'",
+          "zero beta Attribution API calls",
+          "fields built from Action API only"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 3 AC-79: beta has no remote-media support."
+    },
+    {
+      "id": "TC-F-009",
+      "tool_group": "F",
+      "tool": "get_file_metadata",
+      "params": {
+        "filename": "File:BetaGap.png",
+        "project": "commonswiki",
+        "_simulate": "beta-404"
+      },
+      "category": "happy_path",
+      "expected": {
+        "status": "ok",
+        "required_fields": ["filename", "url", "license", "attribution", "_meta"],
+        "constraints": [
+          "beta 404 with valid imageinfo is success",
+          "not file_not_found"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 3 AC-80: beta gap distinction."
+    },
+    {
+      "id": "TC-F-010",
+      "tool_group": "F",
+      "tool": "get_file_metadata",
+      "params": {
+        "filename": "File:RedirectTest.png",
+        "project": "commonswiki",
+        "_simulate": "cross-origin-redirect"
+      },
+      "category": "security",
+      "expected": {
+        "status": "error",
+        "required_fields": ["error.code", "error.message", "error.retryable"],
+        "constraints": [
+          "error.code == 'upstream_unavailable'",
+          "cross-origin redirect not followed",
+          "no host or credential leak"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 3 AC-81 / SR-3: redirect control."
+    },
+    {
+      "id": "TC-F-011",
+      "tool_group": "F",
+      "tool": "get_image_info",
+      "params": {
+        "filename": "File:NASA logo.svg",
+        "project": "commonswiki",
+        "_simulate": "disclaimer"
+      },
+      "category": "happy_path",
+      "expected": {
+        "status": "ok",
+        "required_fields": ["filename", "license", "attribution", "attribution.disclaimer", "_meta"],
+        "constraints": [
+          "ATTRIBUTION_DISCLAIMER injected verbatim",
+          "100% of media results carry it"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 3 AC-86/AC-F-011: disclaimer injection."
+    },
+    {
+      "id": "TC-F-012",
+      "tool_group": "F",
+      "tool": "get_image_info",
+      "params": {
+        "filename": "File:UnknownLicense.png",
+        "project": "commonswiki",
+        "_simulate": "unknown-license"
+      },
+      "category": "edge_case",
+      "expected": {
+        "status": "ok",
+        "required_fields": ["filename", "license", "license.url", "warnings", "attribution", "_meta"],
+        "constraints": [
+          "license.url is null for an unmapped short name",
+          "warning emitted",
+          "no guessed or site-wide URL"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "Phase 3 AC-82: no guessed licence URL."
     }
   ]
 }
