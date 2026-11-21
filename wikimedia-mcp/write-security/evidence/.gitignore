@@ -1,0 +1,3 @@
+# Runtime rollback evidence — never commit generated artefacts.
+rollback-plan-*.json
+rollback-evidence-*.json

@@ -1,4 +1,5 @@
 import { createHmac, randomUUID } from 'node:crypto';
+import type { AnchorEnvelope, AnchorSink } from './audit-sink.js';
 import type { WriteConfig } from './config.js';
 import { AUDIT_OUTCOMES } from './constants.js';
 
@@ -60,10 +61,21 @@ function hmac(secret: string, value: string): string {
 
 export type AuditAnchor = { date: string; head: string; anchored_at: string };
 
+/** Pretty, newline-terminated export artefact (WORM spec §5). */
+export type AuditExport = {
+  schema_version: 1;
+  exported_at: string;
+  events: AuditEvent[];
+  anchors: AuditAnchor[];
+  head: string;
+};
+
 /**
  * Append-only, tamper-evident HMAC hash chain. Records are never mutated in
  * place; verification detects alteration, deletion and reordering. The daily
  * anchor models the external WORM sink (injected in production deployment).
+ * Chain verification is now automatic on anchor and on export (WP3); the store
+ * never claims to implement 365-day retention — that is sink-enforced.
  */
 export class AuditStore {
   private readonly records: AuditEvent[] = [];
@@ -73,6 +85,7 @@ export class AuditStore {
     private readonly config: Pick<WriteConfig, 'auditHmacSecret' | 'auditRetentionDays'>,
     private readonly clock: () => number = Date.now,
     private readonly anchorSink: (anchor: AuditAnchor) => void = () => {},
+    private readonly sink?: AnchorSink,
   ) {}
 
   append(input: AuditEventInput): AuditEvent {
@@ -124,6 +137,8 @@ export class AuditStore {
 
   /** Daily WORM anchor — called once per UTC day by the deployment scheduler. */
   anchorDaily(now = this.clock()): AuditAnchor | null {
+    const broken = this.verify();
+    if (broken !== null) throw new Error(`audit chain broken at index ${broken}; refusing to anchor`);
     const last = this.records.at(-1);
     if (last === undefined) return null;
     const date = new Date(now).toISOString().slice(0, 10);
@@ -135,7 +150,34 @@ export class AuditStore {
     };
     this.anchors.push(anchor);
     this.anchorSink(anchor);
+    if (this.sink !== undefined) {
+      const envelope: AnchorEnvelope = {
+        schema_version: 1,
+        sink: this.sink.kind,
+        anchor,
+        head_verified: this.verifyHead(anchor.head),
+      };
+      this.sink.write(envelope);
+    }
     return anchor;
+  }
+
+  /**
+   * Export events + anchors only after automatic chain + head verification.
+   * Refuses to export a broken or head-mismatched chain (WORM spec §5).
+   */
+  export(): AuditExport {
+    const broken = this.verify();
+    if (broken !== null) throw new Error(`audit chain broken at index ${broken}; refusing to export`);
+    const anchoredHead = this.anchors.at(-1)?.head ?? 'genesis';
+    if (!this.verifyHead(anchoredHead)) throw new Error('audit head mismatch; refusing to export');
+    return {
+      schema_version: 1,
+      exported_at: new Date(this.clock()).toISOString().replace(/\.\d{3}Z$/, 'Z'),
+      events: this.all.map((event) => ({ ...event })),
+      anchors: this.anchors.map((anchor) => ({ ...anchor })),
+      head: this.head,
+    };
   }
 
   get retentionDays(): number { return this.config.auditRetentionDays; }

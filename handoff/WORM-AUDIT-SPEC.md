@@ -126,3 +126,26 @@ Operator steps:
 - [ ] G6 evidence attached and AC-155 sign-off (Security Architect, Backend Lead, Product Owner) obtained.
 
 **Current status:** none of the above is evidenced for production. The local hash chain is fixture-tested only; external WORM anchoring is not yet done.
+
+---
+
+## 8. WP3 machine-checkable status (additive, 2026-11-21)
+
+The gate-first spine added `src/write/audit-sink.ts` and made chain verification automatic;
+`tests/write/worm-sink.test.ts` evidences the following boxes **in fixtures only**:
+
+- [x] (machine-checkable) A real, pluggable `anchorSink` exists with `local-noop` (default),
+  `append-only-log`, `s3-object-lock` and `webhook` sinks; the latter two require an injected
+  transport and make no network call on their own.
+- [x] (machine-checkable) Chain verification runs automatically inside `anchorDaily()` and
+  `export()`; `export()` refuses a broken chain or a head mismatch.
+- [x] (machine-checkable) Anchors carry only `{date, head, anchored_at}` plus an optional
+  verified chain export; the HMAC secret and raw subjects are never in the sink payload
+  (string-scan asserted).
+- [x] (machine-checkable) Default config still yields `memory:process` with the local no-op
+  sink; `verify:catalogue` stays green (28 tools, all controls wired).
+
+Still **human/operator checks** (not closed by code): sink-enforced 365-day retention in a
+separate trust domain, HMAC secret rotation/re-anchor, a real external sink injected in
+production, export/restore rehearsal, G6 evidence attachment and AC-155 sign-off. The
+`AuditStore` continues not to claim retention.

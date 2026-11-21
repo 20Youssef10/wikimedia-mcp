@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { KNOWN_WRITE_SCOPES } from './constants.js';
@@ -130,8 +130,32 @@ function noWildcard(values: readonly string[], key: string): void {
 /** Default sign-off record path. Absent in this repository by design. */
 export const WRITES_SIGNOFF_PATH = path.resolve(process.cwd(), 'write-security', 'signoff.md');
 
+/**
+ * WP2 helper — does a GENUINE human-signed artefact exist? A decision record
+ * produced by `wmcp gate record` is explicitly NOT a signature and is never
+ * accepted here. This inspects the owner-supplied sign-off file for a real
+ * signature marker (letters after `Signature:`), not a blank placeholder.
+ */
+export function hasGenuineSignedRecord(
+  filePath: string,
+  readFile: (file: string) => string = (file) => readFileSync(file, 'utf8'),
+): boolean {
+  try {
+    const text = readFile(filePath);
+    return /^[ \t]*Signature:[ \t]*[A-Za-z][A-Za-z .'-]+/m.test(text);
+  } catch {
+    return false;
+  }
+}
+
 export type WriteConfigDeps = {
   signoffPresent?: (path: string) => boolean;
+  /**
+   * Optional genuine-signature check used by the existing boot rule. Defaults
+   * to the previous existence-only posture so no current deployment is
+   * weakened or newly blocked; supply `hasGenuineSignedRecord` to enforce it.
+   */
+  genuineSignedRecord?: (path: string) => boolean;
 };
 
 /** Returns `null` in the default read-only deployment (no write config object at all). */
@@ -152,7 +176,8 @@ export function loadWriteConfig(
     throw new Error('write config: kill switch may not be released while gates are unsigned');
   }
   const signoffPresent = deps.signoffPresent ?? ((file: string) => existsSync(file));
-  if (!gatesSigned || !signoffPresent(WRITES_SIGNOFF_PATH)) {
+  const genuineSignedRecord = deps.genuineSignedRecord ?? (() => true);
+  if (!gatesSigned || !signoffPresent(WRITES_SIGNOFF_PATH) || !genuineSignedRecord(WRITES_SIGNOFF_PATH)) {
     throw new Error('write config: signed gate record is required before writes may be enabled (AC-155)');
   }
 

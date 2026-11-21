@@ -120,3 +120,27 @@ Security/Backend reviewer (optional, if required by policy):
 Signature: ______________________________________  Name (printed): ______________________  Date: ______________
 
 **Result of this plan as handed off: NOT EXECUTED. No real write or rollback has been performed; all signatures above are blank.**
+
+---
+
+## 8. Recording harness (WP5 — additive; does not execute the test)
+
+The harness **records** the sequence above; a human still performs every write and signs the
+evidence. It performs **no real wiki write** and refuses any project other than `testwiki`.
+Run after `npm run build`:
+
+```sh
+# Default: dry-run plan only — no runtime, no network, no mutation.
+npm run rollback:harness -- --project testwiki --tool edit_page --operator role:Operator --witness role:Witness
+# Latest form with the unified entry:
+npm run wmcp -- rollback-harness --project testwiki --tool edit_page --dry-run
+# Live execution is a separate, human-owned event and requires an explicit assertion:
+# npm run wmcp -- rollback-harness --project testwiki --tool edit_page \
+#   --execute --operator role:Operator --witness role:Witness --i-have-signoff
+```
+
+`--execute` without `--i-have-signoff` (or without operator/witness refs) exits non-zero and
+makes no call. The CLI writes a plan/evidence **skeleton** to
+`wikimedia-mcp/write-security/evidence/`; real evidence (exported `events` + `anchors`, chain
+verified) is attached only by the human after execution. The blank sign-off blocks above
+remain blank — the harness does not fill them in.

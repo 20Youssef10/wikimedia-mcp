@@ -19,7 +19,8 @@ export type ValidatedToken = {
   exp: number;
 };
 
-function hashPrefix(value: string): string {
+/** Reusable actor/approver hash helper (WP4). Never exposes the raw subject. */
+export function hashPrefix(value: string): string {
   return `sha256-prefix:${createHash('sha256').update(value).digest('hex').slice(0, 8)}`;
 }
 

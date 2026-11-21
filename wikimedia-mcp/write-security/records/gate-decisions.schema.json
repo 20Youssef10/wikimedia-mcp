@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Gate decision record chain (records decisions, does not sign)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "label", "head", "records"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "label": { "const": "RECORDS DECISIONS — DOES NOT SIGN" },
+    "head": { "type": "string", "description": "Last record_hash, or 'genesis'." },
+    "records": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["seq", "prev_hash", "record_hash", "role", "decision", "evidence_hash", "gate_id", "signatory_ref", "recorded_at"],
+        "properties": {
+          "seq": { "type": "integer", "minimum": 1 },
+          "prev_hash": { "type": "string" },
+          "record_hash": { "type": "string" },
+          "role": { "type": "string" },
+          "decision": { "enum": ["APPROVE_WITH_CONDITIONS", "REJECT", "ABSTAIN", "NOTED"] },
+          "evidence_hash": { "type": "string", "pattern": "^sha256:[0-9a-f]{64}$" },
+          "gate_id": { "enum": ["G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10", "G11", "G12"] },
+          "signatory_ref": { "type": "string", "pattern": "^role:" },
+          "recorded_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  }
+}

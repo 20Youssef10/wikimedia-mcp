@@ -15,6 +15,9 @@
     "verify:sdk": "tsc --ignoreConfig --noEmit --module nodenext --moduleResolution nodenext --target es2023 --strict --types node verify-sdk.ts",
     "verify:catalogue": "node scripts/assert-catalogue.mjs",
     "verify:read-only": "node scripts/assert-read-only.mjs",
+    "gate:status": "node scripts/gate-status.mjs",
+    "wmcp": "node scripts/wmcp.mjs",
+    "rollback:harness": "node scripts/rollback-harness.mjs",
     "start": "tsx src/index.ts",
     "smoke": "tsx scripts/smoke.ts",
     "lint": "eslint ."

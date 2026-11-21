@@ -17,3 +17,6 @@ In an incident, a single named operator may proceed only with retrospective appr
 
 ## Enforcement status
 The two-distinct-subject rule is implemented in `src/write/handlers.ts` (`enforceApprovals`) and is covered by negative tests in `tests/write/`. Operational rollout of the channel and approver identities is a human action and is **not** evidenced by this document.
+
+### Approver identity helper (WP4)
+`src/write/approvers.ts` (`validateApprovers`) now validates two distinct configured subjects/groups before `enforceApprovals` accepts them, and audit events store only `sha256-prefix:` hashes of the approved identities. The helper **does not supply identities**: the real OIDC subjects and the out-of-band channel remain operator-supplied. Rejections (duplicate, missing, unconfigured, self-approval) still fail closed with `approval_required`.

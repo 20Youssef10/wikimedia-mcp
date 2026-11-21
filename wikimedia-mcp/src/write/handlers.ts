@@ -4,7 +4,8 @@ import { SERVER_INFO_META_KEY } from '../protocol/meta.js';
 import { okToolResult, serverInfo } from '../protocol/result.js';
 import type { ResolveResult, ToolResponse } from '../types.js';
 import { AuditStore, canonical, type AuditEventInput } from './audit.js';
-import { validateAccessToken, type WriteFetch } from './auth.js';
+import { validateApprovers } from './approvers.js';
+import { hashPrefix, validateAccessToken, type WriteFetch } from './auth.js';
 import { Capabilities, JtiLedger, RequestStates, type ActorBinding, type CapabilityClaims, type TargetBinding } from './tokens.js';
 import { CONFIRMATION_ID, TWO_PERSON_TOOLS, WRITE_SCOPES, type WriteToolName } from './constants.js';
 import type { WriteConfig } from './config.js';
@@ -178,13 +179,21 @@ function enforceBlastRadius(
   }
 }
 
+/** Audit events store hashed approver references only, never raw subjects. */
+function auditApprovals(ids: readonly string[]): string[] {
+  return ids.map((id) => hashPrefix(id));
+}
+
 function enforceApprovals(runtime: WriteRuntime, name: string, actor: ActorBinding, approvals: string[] | undefined): string[] {
   if (!TWO_PERSON_TOOLS.includes(name as WriteToolName)) return [];
-  if (!runtime.config.twoPersonApproval) throwWrite('approval_required', 'Two-person approval may not be disabled for this tool.');
-  const distinct = [...new Set(approvals ?? [])];
-  const valid = distinct.filter((id) => runtime.config.approverIds.includes(id) && id !== actor.sub);
-  if (valid.length < 2) throwWrite('approval_required', 'Two distinct configured approvers, neither the requester, are required.');
-  return valid;
+  const validation = validateApprovers({
+    approvals,
+    approverIds: runtime.config.approverIds,
+    requesterSub: actor.sub,
+    twoPersonApproval: runtime.config.twoPersonApproval,
+  });
+  if (!validation.ok) throwWrite('approval_required', validation.message);
+  return validation.approvedIds;
 }
 
 function enforceQuotas(runtime: WriteRuntime, actor: ActorBinding): void {
@@ -321,7 +330,7 @@ export function createWriteHandlers(runtime: WriteRuntime): Record<WriteToolName
           diff_hash: `sha256:${sha256(diff)}`,
           content_hash: prepared.contentHash,
           confirmation_id: state.split('.')[0]?.slice(0, 16) ?? null,
-          approvals,
+          approvals: auditApprovals(approvals),
         });
         return {
           content: [{ type: 'text', text: JSON.stringify({
@@ -396,7 +405,7 @@ export function createWriteHandlers(runtime: WriteRuntime): Record<WriteToolName
           content_hash: prepared.contentHash,
           confirmation_id: state.jti,
           capability_id: claims.jti,
-          approvals: approved,
+          approvals: auditApprovals(approved),
         });
         return okToolResult({
           resultType: 'complete', executed: false, would_change: true, action: prepared.action,
@@ -462,7 +471,7 @@ export function createWriteHandlers(runtime: WriteRuntime): Record<WriteToolName
         content_hash: prepared.contentHash,
         confirmation_id: state.jti,
         capability_id: claims.jti,
-        approvals: approved,
+        approvals: auditApprovals(approved),
       });
       return okToolResult({
         resultType: 'complete', executed: true, would_change: true, action: prepared.action,

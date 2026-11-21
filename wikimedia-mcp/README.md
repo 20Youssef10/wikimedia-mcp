@@ -362,6 +362,32 @@ With no OAuth/CIMD configuration supplied, write calls fail closed (`authenticat
 
 See `write-security/{signoff,rollback-runbooks,two-person-approval-runbook,upload-tou-checklist,incident-revocation-drill}.md` and `../wikimedia-mcp-research/17-threat-model-rereview.md`.
 
+## Gate-first spine CLI (WP1–WP5)
+
+These commands are informational/recording only. They register no MCP tool, keep the default
+catalogue at 28, and never sign or fabricate a human decision.
+
+```sh
+npm run build
+npm run gate:status                       # prints G1–G12, evidence paths, residual risks
+npm run gate:status -- --require-signed   # informational default; non-zero while gates unsigned
+npm run wmcp -- gate record --role "Security Architect" \
+  --decision APPROVE_WITH_CONDITIONS --evidence sha256:<64hex> --gate G6
+npm run rollback:harness -- --project testwiki --tool edit_page --dry-run
+```
+
+- `gate:status` prints one row per gate and writes the frozen baseline to `reports/gate-status.json`
+  (pretty, newline-terminated JSON). G1 and G8 are shown as `UNSIGNED`; a gate with a recorded
+  decision is shown as `RECORDED (not signed)`, never `SIGNED`.
+- `gate record` appends a tamper-evident decision chain under `write-security/records/`. **It
+  records decisions; it does not sign.** No personal name, signature or legal approval is
+  produced, and recorded decisions never satisfy the boot-time `MCP_WRITE_GATES_SIGNED` rule.
+- The WORM adapter (`src/write/audit-sink.ts`) defaults to the in-process `local-noop` sink;
+  external sinks are opt-in and inject a transport (no paid dependency, no endpoint contacted
+  by default). Chain verification is automatic on anchor and export; retention is sink-enforced.
+- The rollback harness is testwiki-only and human-executed. It records the sequence and writes
+  an evidence skeleton; it performs no real wiki write. See `handoff/REAL-WIKI-ROLLBACK-PLAN.md`.
+
 ## Known limitations / deviations
 
 - The contract names `@modelcontextprotocol/sdk`; the registry's v1 line

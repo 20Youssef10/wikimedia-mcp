@@ -27,3 +27,6 @@
 Enabling the tools increases exposure to: human error in confirming a diff (T-06/T-22), indirect prompt injection amplified by write capability (T-02), unauthorised writes if OAuth configuration is misdeployed (G2), and upload legal exposure (G8). The requester explicitly accepted these risks. **Every technical control remains active**; this record does not disable, bypass or auto-confirm any control.
 
 **Status: ENABLED BY REQUESTER RISK ACCEPTANCE — not three-way signed, not legally signed off.**
+
+## Recorder clarification (WP2)
+`wmcp gate record` appends hash-chained **decision records** under `write-security/records/`; it **records decisions and does not sign**. A recorded decision is never a substitute for the genuine three-way or G8 signature described above, and never satisfies `MCP_WRITE_GATES_SIGNED` at boot.

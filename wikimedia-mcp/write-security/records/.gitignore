@@ -1,0 +1,3 @@
+# Runtime decision records and anchors — never commit raw records/secrets.
+gate-decisions.json
+anchors.ndjson
