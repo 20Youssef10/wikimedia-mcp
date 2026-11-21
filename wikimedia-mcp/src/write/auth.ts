@@ -70,6 +70,9 @@ export async function validateAccessToken(
   tokenEndpointIss?: string,
   now: () => number = Date.now,
 ): Promise<ValidatedToken> {
+  if (config.issuer.length === 0 || config.cimdUrl.length === 0 || config.scopes.length === 0) {
+    throwWrite('authentication_required', 'No write issuer is configured; no write was attempted.');
+  }
   const cimd = await loadCimd(config, fetchImpl);
 
   if (tokenEndpointIss === undefined || tokenEndpointIss !== config.issuer) {

@@ -3,7 +3,7 @@ import {
   assertNoWriteTool, createCsrfGuard, CSRF_REQUEST_HEADER, CSRF_RESPONSE_HEADER,
   findWriteCredentialEnvKeys, isStateChangingRequest, WRITE_TOOL_DENYLIST,
 } from '../../src/protocol/csrf.js';
-import { TOOL_NAMES } from '../../src/server/tools/registry.js';
+import { TOOL_NAMES, activeToolNames } from '../../src/server/tools/registry.js';
 
 const SECRET = 'unit-test-csrf-secret-at-least-16-chars';
 
@@ -72,7 +72,7 @@ describe('state-changing classification and write-tool deny-list (G5/G10)', () =
   });
 
   it('the production catalogue contains no write tool', () => {
-    expect(() => assertNoWriteTool(TOOL_NAMES)).not.toThrow();
+    expect(() => assertNoWriteTool(activeToolNames({ READ_ONLY_PROFILE: '1' }))).not.toThrow();
     expect(() => assertNoWriteTool([...TOOL_NAMES, 'edit_page'])).toThrow(/edit_page/);
   });
 

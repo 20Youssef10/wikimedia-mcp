@@ -5,6 +5,7 @@ import { createMswServer } from '../helpers/msw.js';
 import { startTestHttp, rpc, type TestHttpServer } from '../helpers/raw-http.js';
 import { testConfig } from '../helpers/test-env.js';
 import { TOOL_NAMES } from '../../src/server/tools/registry.js';
+import { WRITE_TOOL_NAMES } from '../../src/write/constants.js';
 
 const msw = createMswServer();
 let server: TestHttpServer;
@@ -98,7 +99,10 @@ describe('A. Discovery and protocol surface', () => {
     expect(tools.map((tool) => tool['name'])).toEqual(TOOL_NAMES);
     for (const tool of tools) {
       expect((tool['inputSchema'] as Record<string, unknown>)?.['type']).toBe('object');
-      expect(tool['annotations']).toMatchObject({ readOnlyHint: true, destructiveHint: false, openWorldHint: true });
+      const expected = (WRITE_TOOL_NAMES as readonly string[]).includes(String(tool['name']))
+        ? { readOnlyHint: false, destructiveHint: true, openWorldHint: true, idempotentHint: false }
+        : { readOnlyHint: true, destructiveHint: false, openWorldHint: true };
+      expect(tool['annotations']).toMatchObject(expected);
     }
   });
 });

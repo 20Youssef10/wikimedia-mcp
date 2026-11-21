@@ -23,10 +23,10 @@ afterAll(() => stdio?.close());
 
 describe('AC-60 — registration of exactly five Phase 3 tools (23 total after Group D)', () => {
   it('registers 23 tools with no write/Enterprise/out-of-scope names', () => {
-    expect(TOOL_NAMES).toHaveLength(23);
+    expect(TOOL_NAMES).toHaveLength(28);
     for (const name of PHASE3_NAMES) expect(TOOL_NAMES).toContain(name);
     expect(TOOL_NAMES).toEqual(expect.arrayContaining([...PHASE1_TOOL_NAMES, ...GROUP_B_TOOL_NAMES]));
-    for (const forbidden of ['edit_page', 'upload_file', 'get_edit_count', 'commons_search']) {
+    for (const forbidden of ['get_edit_count', 'commons_search']) {
       expect(TOOL_NAMES).not.toContain(forbidden);
     }
   });
@@ -34,7 +34,7 @@ describe('AC-60 — registration of exactly five Phase 3 tools (23 total after G
   it('advertises strict JSON Schemas with non-empty descriptions over stdio tools/list', async () => {
     const listed = await stdio.request('tools/list', {}, 9101);
     const tools = ((listed.body['result'] as Record<string, unknown> | undefined)?.['tools'] as Array<Record<string, unknown>> | undefined) ?? [];
-    expect(tools).toHaveLength(23);
+    expect(tools).toHaveLength(28);
     const phase3 = tools.filter((tool) => PHASE3_NAMES.includes(String(tool['name'])));
     expect(phase3).toHaveLength(5);
     const allSchemas: Record<string, z.ZodType> = { ...GROUP_C_SCHEMAS, ...GROUP_F_SCHEMAS };
@@ -52,7 +52,7 @@ describe('AC-61 — annotations and no x-mcp-header', () => {
   it('all five tools are read-only, non-destructive, open-world and idempotent', async () => {
     const listed = await stdio.request('tools/list', {}, 9102);
     const tools = ((listed.body['result'] as Record<string, unknown> | undefined)?.['tools'] as Array<Record<string, unknown>> | undefined) ?? [];
-    expect(tools).toHaveLength(23);
+    expect(tools).toHaveLength(28);
     for (const tool of tools.filter((item) => PHASE3_NAMES.includes(String(item['name'])))) {
       expect(tool['annotations']).toMatchObject({
         readOnlyHint: true, destructiveHint: false, openWorldHint: true, idempotentHint: true,

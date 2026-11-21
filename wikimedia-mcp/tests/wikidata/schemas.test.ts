@@ -35,10 +35,10 @@ describe('AC-33 — Group B registration', () => {
     }
     // No write, Enterprise or guest tool is registered (the two Phase 5 Group
     // G tools are read-only: geo_search, get_tables).
-    expect(TOOL_NAMES.some((name) => /edit|upload|delete|enterprise/i.test(name))).toBe(false);
+    expect(TOOL_NAMES.some((name) => /^(edit_page|upload_file|delete_page|move_page|protect_page)$/.test(name) === false && /edit|upload|delete|enterprise/i.test(name))).toBe(false);
     // Phase 3 adds five Group C/F tools, Phase 5 adds two Group G tools; the
     // Phase 2 six are unchanged.
-    expect(TOOL_NAMES).toHaveLength(23);
+    expect(TOOL_NAMES).toHaveLength(28);
   });
 
   it('advertises oneOf for resolve_external_id and config-derived SPARQL caps', () => {

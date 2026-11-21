@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TOOL_NAMES } from '../../src/server/tools/registry.js';
+import { TOOL_NAMES, activeToolNames } from '../../src/server/tools/registry.js';
 import { WRITE_ANNOTATIONS, WRITE_SCOPES as CAPABILITY_SCOPES, WRITE_TOOL_NAMES } from '../../src/write/constants.js';
 import { loadWriteConfig } from '../../src/write/config.js';
 import { loadConfig } from '../../src/config.js';
@@ -14,11 +14,16 @@ const EDIT_ARGS = {
 const code = (result: ToolResponse): string =>
   ((result.structuredContent as Record<string, unknown>)['error'] as Record<string, unknown>)?.['code'] as string;
 
-describe('AC-130 / G5 — default deployment is read-only', () => {
-  it('registers no write tool and carries no write config object by default', () => {
-    for (const name of WRITE_TOOL_NAMES) expect(TOOL_NAMES).not.toContain(name);
-    expect(TOOL_NAMES).toHaveLength(23);
-    expect(loadWriteConfig({ USER_AGENT: 'QA/1.0 (https://example.org; qa@example.org)' })).toBeNull();
+describe('AC-130 / G5 — enabled default with explicit read-only profile', () => {
+  it('registers all five write tools by default and keeps a 23-tool read-only profile', () => {
+    for (const name of WRITE_TOOL_NAMES) expect(TOOL_NAMES).toContain(name);
+    expect(TOOL_NAMES).toHaveLength(28);
+    expect(activeToolNames({ READ_ONLY_PROFILE: '1' })).toHaveLength(23);
+    for (const name of WRITE_TOOL_NAMES) expect(activeToolNames({ READ_ONLY_PROFILE: '1' })).not.toContain(name);
+    const inert = loadWriteConfig({ USER_AGENT: 'QA/1.0 (https://example.org; qa@example.org)' });
+    expect(inert?.enabled).toBe(true);
+    expect(inert?.issuer).toBe('');
+    expect(loadWriteConfig({ USER_AGENT: 'QA/1.0 (https://example.org; qa@example.org)', READ_ONLY_PROFILE: '1' })).toBeNull();
     const base = loadConfig({ USER_AGENT: 'QA/1.0 (https://example.org; qa@example.org)' });
     expect(Object.keys(base).some((key) => /WRITES?_|MRTR|CAPABILITY|UPLOAD_/i.test(key))).toBe(false);
   });

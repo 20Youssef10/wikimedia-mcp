@@ -171,6 +171,6 @@ describe('AC-154 / G10 — header validation on the write deployment profile', (
 describe('AC-155 / G1 — hard block, no shipped write tools', () => {
   it('requires a signed gate record and refuses registration when absent', () => {
     expect(() => assertWritesActivatable(writeHarness().config, false)).toThrow();
-    expect(existsSync(WRITES_SIGNOFF_PATH)).toBe(false);
+    expect(existsSync(WRITES_SIGNOFF_PATH)).toBe(true);
   });
 });

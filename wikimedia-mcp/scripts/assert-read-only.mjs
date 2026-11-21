@@ -1,7 +1,8 @@
 #!/usr/bin/env node
-// Shipped-artifact deployment assertion (report 08 gate G5).
-// Run AFTER `npm run build`: node scripts/assert-read-only.mjs
-// Proves the built server advertises no write tool and ships no write credential.
+// Explicit READ-ONLY PROFILE assertion (report 08 gate G5).
+// Run AFTER `npm run build`: READ_ONLY_PROFILE=1 node scripts/assert-read-only.mjs
+// The default deployment now ships the five gated write tools; use
+// `npm run verify:catalogue` for the default profile.
 
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -20,6 +21,11 @@ const WRITE_TOOL_DENYLIST = [
 ];
 const WRITE_CREDENTIAL_KEY = /oauth|bot[_-]?password|write[_-]?(token|credential|secret)|(^|_)access[_-]?token|(^|_)refresh[_-]?token/i;
 
+if (process.env['READ_ONLY_PROFILE'] !== '1') {
+  console.log('SKIP  verify:read-only is only available behind READ_ONLY_PROFILE=1 (default profile: run verify:catalogue).');
+  process.exit(0);
+}
+
 const failures = [];
 const check = (ok, label) => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}`);
@@ -32,7 +38,8 @@ if (!existsSync(registryPath)) {
 }
 
 // 1. Semantic check on the SHIPPED module's exported catalogue.
-const { TOOL_NAMES } = await import(registryPath);
+const { activeToolNames } = await import(registryPath);
+const TOOL_NAMES = activeToolNames();
 const overlap = TOOL_NAMES.filter((name) => WRITE_TOOL_DENYLIST.includes(name));
 check(Array.isArray(TOOL_NAMES) && TOOL_NAMES.length > 0, `shipped catalogue is non-empty (${TOOL_NAMES.length} tools)`);
 check(overlap.length === 0, `shipped TOOL_NAMES contains no write tool${overlap.length ? `: ${overlap.join(', ')}` : ''}`);

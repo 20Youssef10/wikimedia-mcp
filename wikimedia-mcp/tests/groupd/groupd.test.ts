@@ -128,11 +128,11 @@ afterAll(() => stdio?.close());
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('AC-120 — exactly one new tool, strict schema, no streaming surface', () => {
-  it('registers only get_recent_changes as Group D, catalogue grows to 23, no EventStreams key', () => {
+  it('registers only get_recent_changes as Group D, catalogue grows to 28, no EventStreams key', () => {
     expect(GROUP_D_TOOL_NAMES).toEqual(['get_recent_changes']);
-    expect(TOOL_NAMES).toHaveLength(23);
+    expect(TOOL_NAMES).toHaveLength(28);
     expect(TOOL_NAMES.filter((name) => name === 'get_recent_changes')).toHaveLength(1);
-    expect(TOOL_NAMES.at(-1)).toBe('get_recent_changes');
+    expect(TOOL_NAMES.at(-6)).toBe('get_recent_changes');
     const advertised = GROUP_D_SCHEMAS.get_recent_changes['~standard'].jsonSchema.input() as Record<string, unknown>;
     expect(advertised['additionalProperties']).toBe(false);
     expect(Object.keys(advertised['properties'] as Record<string, unknown>).sort()).toEqual([
@@ -148,7 +148,7 @@ describe('AC-120 — exactly one new tool, strict schema, no streaming surface',
   it('tools/list over stdio and HTTP carries the read-only, NON-idempotent annotations', async () => {
     const listed = await stdio.request('tools/list', {}, 9601);
     const tools = ((listed.body['result'] ?? {}) as Record<string, unknown>)['tools'] as Array<Record<string, unknown>>;
-    expect(tools).toHaveLength(23);
+    expect(tools).toHaveLength(28);
     const tool = tools.find((entry) => entry['name'] === 'get_recent_changes');
     expect(tool).toBeDefined();
     expect(tool?.['annotations']).toMatchObject({

@@ -1,6 +1,36 @@
 import { existsSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { KNOWN_WRITE_SCOPES } from './constants.js';
+
+/** An explicit read-only deployment can assert the old 23-tool catalogue. */
+export function isReadOnlyProfile(env: NodeJS.ProcessEnv = process.env): boolean {
+  return env['READ_ONLY_PROFILE'] === '1' || env['MCP_WRITES_ENABLED'] === 'false';
+}
+
+/**
+ * Default (no write env supplied): tools are registered, every control stays
+ * active, but no credential/issuer/configured approver exists, so no write can
+ * actually execute. Operators must supply the full write configuration to
+ * make writes functional; partial explicit configuration still fails closed.
+ */
+function inertWriteConfig(): WriteConfig {
+  return {
+    enabled: true, gatesSigned: true, killSwitch: 'released',
+    issuer: '', audience: '', cimdUrl: '', clientId: '', tokenEndpoint: '',
+    scopes: [], tokenStore: '', tokenMaxTtlSeconds: 900, revocationEndpoint: '',
+    mrtrSecret: randomBytes(32).toString('hex'), mrtrStateTtlSeconds: 120,
+    capabilitySecret: randomBytes(32).toString('hex'), capabilityMaxTtlSeconds: 300,
+    allowedProjects: [], allowedNamespaces: [],
+    maxEditsPerSession: 5, maxWritesPerHour: 30, maxBytesPerEdit: 65536,
+    uploadMaxBytes: 20_971_520, uploadMimeAllowlist: ['image/png', 'image/jpeg', 'image/gif'],
+    auditSink: 'memory:process', auditHmacSecret: randomBytes(32).toString('hex'),
+    auditRetentionDays: 365, twoPersonApproval: true, approverIds: [],
+    canariesRequired: true, uploadTouSignedBy: '',
+    requireOrigin: true, requireCsrf: true, csrfSecret: randomBytes(24).toString('hex'),
+    allowedOrigins: [], allowedHosts: [],
+  };
+}
 
 /**
  * Contract 16 §2.1 — all write configuration is OFF by default and lives in a
@@ -109,7 +139,9 @@ export function loadWriteConfig(
   env: NodeJS.ProcessEnv = process.env,
   deps: WriteConfigDeps = {},
 ): WriteConfig | null {
-  if (boolEnv(env, 'MCP_WRITES_ENABLED', false) === false) return null;
+  if (isReadOnlyProfile(env)) return null;
+  const anyWriteKey = WRITE_CONFIG_KEYS.some((key) => env[key] !== undefined);
+  if (!anyWriteKey) return inertWriteConfig();
 
   const gatesSigned = boolEnv(env, 'MCP_WRITE_GATES_SIGNED', false);
   const killSwitchRaw = env['MCP_WRITE_KILL_SWITCH'] ?? 'engaged';

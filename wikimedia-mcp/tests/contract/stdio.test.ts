@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { RawStdioClient } from '../helpers/raw-stdio.js';
 import { TOOL_NAMES } from '../../src/server/tools/registry.js';
+import { WRITE_TOOL_NAMES } from '../../src/write/constants.js';
 
 let client: RawStdioClient;
 
@@ -29,7 +30,10 @@ describe('transport parity over stdio (AC-32)', () => {
     const tools = (body['result'] as Record<string, unknown>)['tools'] as Array<Record<string, unknown>>;
     expect(tools.map((tool) => tool['name'])).toEqual(TOOL_NAMES);
     for (const tool of tools) {
-      expect(tool['annotations']).toMatchObject({ readOnlyHint: true, destructiveHint: false });
+      const expected = (WRITE_TOOL_NAMES as readonly string[]).includes(String(tool['name']))
+        ? { readOnlyHint: false, destructiveHint: true }
+        : { readOnlyHint: true, destructiveHint: false };
+      expect(tool['annotations']).toMatchObject(expected);
     }
   });
 

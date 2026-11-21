@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { WikimediaClient } from '../../src/upstream/client.js';
 import { assertNoWriteTool, findWriteCredentialEnvKeys, WRITE_TOOL_DENYLIST } from '../../src/protocol/csrf.js';
 import { loadConfig } from '../../src/config.js';
-import { TOOL_NAMES } from '../../src/server/tools/registry.js';
+import { activeToolNames } from '../../src/server/tools/registry.js';
 import { startTestHttp, rpc, type TestHttpServer } from '../helpers/raw-http.js';
 import { testConfig } from '../helpers/test-env.js';
 
@@ -14,10 +14,12 @@ import { testConfig } from '../helpers/test-env.js';
 let server: TestHttpServer;
 
 beforeAll(async () => {
+  process.env['READ_ONLY_PROFILE'] = '1';
   server = await startTestHttp(testConfig(), new WikimediaClient(testConfig(), { useDispatcher: false }));
 });
 
 afterAll(async () => {
+  delete process.env['READ_ONLY_PROFILE'];
   await server.close();
 });
 
@@ -33,7 +35,7 @@ describe('G5 — read-only deployment assertion', () => {
     const result = response.body['result'] as { tools?: AdvertisedTool[] } | undefined;
     expect(result?.tools).toBeDefined();
     const names = (result?.tools ?? []).map((tool) => tool.name).sort();
-    expect(names).toEqual([...TOOL_NAMES].sort());
+    expect(names).toEqual([...activeToolNames({ READ_ONLY_PROFILE: '1' })].sort());
   });
 
   it('no deny-listed write tool is advertised and every tool is read-only/non-destructive', async () => {

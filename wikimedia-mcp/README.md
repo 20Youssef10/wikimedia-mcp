@@ -11,20 +11,20 @@ advertised as `io.modelcontextprotocol/serverInfo.version` and in the
 `wikimedia://server/info` resource, and mirrored by the package version). The
 major bump from `1.0.0` marks the merge of all three phases into one server,
 whose tool surface grew from 9 (Phase 1) to 20 (Phases 1+2+3), then to 22 with
-the two Phase 5 (Group G) read-only tools, and then to 23 with the Group D
-read-only `get_recent_changes` tool. The frozen
+the two Phase 5 (Group G) read-only tools, then to 23 with the Group D
+read-only `get_recent_changes` tool, and finally to 28 when the five write tools
+were enabled by explicit Product Owner risk acceptance on 2026-11-21. The frozen
 per-contract versions (v1.0.1 / v2.0.0 / v3.0.0 / v5.0.0 for the Phase 5
 subset) and the protocol revision `2026-07-28` are independent and unchanged.
 
-**Twenty-three read-only tools:** the nine Phase 1 Group A tools (`search`,
+**Twenty-eight tools — 23 read-only + 5 gated writes:** the nine Phase 1 Group A tools (`search`,
 `get_summary`, `get_page`, `get_sections`, `get_related_pages`, `get_media`,
 `get_languages`, `get_random_page`, `get_feed`), the six Phase 2 Group B
 (Wikidata) tools, the five Phase 3 tools (three Group C metrics, two Group F
 media), the two Phase 5 tools (`geo_search`, `get_tables`) and the Group D tool
 (`get_recent_changes`) listed below. Both **stdio** and **Streamable HTTP**
-transports are supported. No write tools, no EventStreams/SSE consumer, no
-Enterprise APIs, no change notifications (`subscriptions/listen` returns
-`-32601`).
+transports are supported. No Enterprise APIs, no EventStreams/SSE consumer, no
+change notifications (`subscriptions/listen` returns `-32601`).
 
 > SDK note: the 2026-07-28 implementation is the v2 SDK, which ships as two
 > packages (`@modelcontextprotocol/server` and `@modelcontextprotocol/client`),
@@ -354,13 +354,13 @@ time (durations 43.7 s, 45.9 s, 40.7 s), with no `TestTimeoutError`.
   before URL interpolation. Wikidata labels/descriptions are returned as data
   (prompt-injection canaries are not promoted to instructions).
 
-## Gated write security package (design + harness only — NOT shipped)
+## Write tools — enabled by requester risk acceptance
 
-Contract 16 v7.0.0 is implemented as a **conditional package**. In the default deployment `MCP_WRITES_ENABLED=false`: no write tool is registered, no write config object exists, no write credential is loaded, and `npm run verify:read-only` stays 5/5. The five tools (`edit_page`, `protect_page`, `move_page`, `delete_page`, `upload_file`) exist only behind the gated factory in `src/write/` and are exercised by the isolated harness in `tests/write/` (AC-130…AC-155). Registration requires a signed gate record that **does not exist** in this repository, so no write tool is reachable.
+The five write tools (`edit_page`, `protect_page`, `move_page`, `delete_page`, `upload_file`) are **registered in the default 28-tool catalogue** following the explicit Product Owner instruction "enable all tools" on 2026-11-21. This is recorded honestly in `write-security/signoff.md`: **independent named signatures from Security Architect, Backend Lead and Product Owner were NOT obtained**, and G8 Legal/Compliance sign-off remains pending. Every technical control remains active — OAuth issuer/scope validation, signed single-use MRTR confirmation, scoped capability tokens, blast-radius limits, kill switch with jti deny-list, HMAC hash-chain audit, dry-run diff, two-person approval, CSRF/Origin enforcement and token redaction. No control was disabled or auto-confirmed to achieve registration.
 
-Implemented control plane: OAuth issuer/CIMD/scope validation (G2), signed single-use 120 s MRTR confirmation with target re-validation (G3), scoped capability tokens, blast-radius limits and kill switch with `jti` deny-list (G4), append-only HMAC hash-chain audit with 365-day retention (G6), dry-run and documented rollback (G7), upload licence/ToU checklist (G8 — **pending human sign-off**), injection canaries (G9), HTTP hardening config (G10), two-person approval (G11), and an executed fixture incident/revocation drill (G12). Artefacts are in `write-security/`; the G1 re-review is `../wikimedia-mcp-research/17-threat-model-rereview.md`.
+With no OAuth/CIMD configuration supplied, write calls fail closed (`authentication_required`/`invalid_issuer`) and G8 leaves real uploads blocked (`licence_not_signed_off`). `READ_ONLY_PROFILE=1` restores the 23-tool read-only catalogue. Verification uses the fixture harness only; no real wiki write is performed.
 
-**AC-155 / G1 sign-off is NOT complete.** No human Security Architect, Backend Lead or Product Owner signatures exist, and G8 legal sign-off is pending. Consequently no write tool ships in any environment.
+See `write-security/{signoff,rollback-runbooks,two-person-approval-runbook,upload-tou-checklist,incident-revocation-drill}.md` and `../wikimedia-mcp-research/17-threat-model-rereview.md`.
 
 ## Known limitations / deviations
 
@@ -392,10 +392,11 @@ Implemented control plane: OAuth issuer/CIMD/scope validation (G2), signed singl
   calls. The live cases (AC-42/45/59, TC-B-001/003/005/008/030, TC-C-001/002,
   TC-F-001) run nightly with `WMCP_LIVE=1`.
 - The independent `/tmp/opencode/qa-mcp-smoke.mjs` and `qa-mcp-http.mjs` scripts
-  assert *exactly twenty-two* tools (the Phase 1–5 invariant). With Group D
-  registered they report 23: only the tool-count check differs. They are
-  intentionally left unmodified; the in-repo contract tests assert the full
-  23-tool catalogue.
+  assert *exactly twenty-two* tools (the Phase 1–5 invariant). With Group D and
+  the five write tools registered they report 28: only the tool-count check
+  differs. They are intentionally left unmodified; use `npm run verify:catalogue`
+  for the default profile and `READ_ONLY_PROFILE=1 npm run verify:read-only`
+  for the explicit read-only profile.
 - Group C/F keep a separate nightly load profile (`CF-M3` p95 budgets and
   `CF-M4` 429-count == 0). Phase 3 tools do **not** feed the Phase 1 M3/M4 or
   Phase 2 B-M3/B-M4 gates. Phase 5 tools (`geo_search`, `get_tables`) feed only

@@ -13,6 +13,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "verify:sdk": "tsc --ignoreConfig --noEmit --module nodenext --moduleResolution nodenext --target es2023 --strict --types node verify-sdk.ts",
+    "verify:catalogue": "node scripts/assert-catalogue.mjs",
     "verify:read-only": "node scripts/assert-read-only.mjs",
     "start": "tsx src/index.ts",
     "smoke": "tsx scripts/smoke.ts",
