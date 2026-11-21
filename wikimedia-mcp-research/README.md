@@ -56,6 +56,7 @@ Where a claim's precision was previously overstated or understated, the current 
 | 2026-11-21 (hardening & spike) | Capped Vitest at 4 workers / 45 s timeouts — three consecutive `npm test` runs pass with identical counts. `serverInfo.version` bumped 1.0.0 → 3.0.0 (contract/protocol versions unchanged). Two additional clean nightly baselines (p95R 287–370 ms, p95A 504–638 ms, 0 429s) — no §4.6 re-baselining needed. Group D spike (report 12): registry demand still ~zero; DROP the always-on EventStreams consumer, BUILD only a bounded stateless `get_recent_changes` via Action API polling. Enterprise remains excluded; modern-only host stance retained. |
 | 2026-11-21 (Phase 5) | Added report 13 and implemented the requested Group G slice: `geo_search` and `get_tables` (22 tools), Parsoid-HTML table extraction with deterministic caps, geosearch bounds, separate G5-M3/G5-M4 counters, AC-95…AC-119, 11 new corpus cases (95 total). Write tools remain hard-blocked: gate assessment found G1–G12 largely unevidenced. 308 tests passing, independent QA green. |
 | 2026-11-21 (read-only sign-off) | Closed the two independently closable gates: G10 (optional `MCP_REQUIRE_ORIGIN`, documented TLS, dormant HMAC CSRF mechanism with test-only proof, dead duplicate header validator removed) and G5 (automated shipped-artifact read-only assertion). Report 14 records the read-only sign-off; G1–G4, G6–G9, G11–G12 remain NOT EVIDENCED and write tools stay hard-blocked pending a WP0–WP4 security work package. 328 tests passing, 5/5 read-only assertion, independent QA green. |
+| 2026-11-21 (Group D + write package) | Added reports 15–17. Group D's `get_recent_changes` implemented via Action API polling (no SSE consumer); live defect in `rcstart`/`rcend` ordering fixed in contract v6.1.0 and verified with real changes + continuation cursor (23 tools, 101 corpus cases). Full write-tool control plane implemented behind off-by-default flags (auth/issuer, MRTR confirmation, capabilities, hash-chain audit, dry-run/rollback, canaries, two-person approval, revocation drill) with five write tools built but deliberately NOT registered. G8 (human ToU/Legal sign-off) and G1 (human security sign-off, AC-155) remain unsatisfiable by an AI — write tools stay disabled. 378 tests passing, 5/5 read-only assertion, QA 15/15 + 10/10 + 9/9. |
 
 ## Reports
 
@@ -75,7 +76,9 @@ Where a claim's precision was previously overstated or understated, the current 
 | `12-group-d-spike.md` | EventStreams feasibility spike and BUILD/DROP decision | Decision: bounded poll tool, drop SSE consumer |
 | `13-phase5-contract.md` | Frozen Phase 5 (requested Group G: geosearch + tables), AC-95…AC-119 | Frozen v5.0.0 |
 | `14-read-only-signoff.md` | Gate status G1–G12, read-only deployment sign-off, blocked write-enablement work package | Read-only signed off; writes blocked |
-| `test-corpus.json` | 95 machine-readable test cases (A–G, all categories) | Validated JSON |
+| `15-group-d-contract.md` | Frozen bounded `get_recent_changes` (Action API polling, no SSE consumer), AC-120…AC-129 | Frozen v6.1.0 |
+| `16-write-tools-contract.md` | Frozen write tools + G1–G12 control plane, AC-130…AC-155 | Frozen v7.0.0 — shipping blocked until gates evidenced |
+| `test-corpus.json` | 101+ machine-readable test cases (A–G, all categories) | Validated JSON |
 
 ## How to use these documents
 

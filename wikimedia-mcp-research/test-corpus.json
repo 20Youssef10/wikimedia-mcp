@@ -851,6 +851,462 @@
       "mode": "fixture"
     },
     {
+      "id": "TC-D-003",
+      "tool_group": "D",
+      "tool": "get_recent_changes",
+      "params": {
+        "project": "wikipedia:en",
+        "lang": "en",
+        "limit": 5
+      },
+      "category": "happy_path",
+      "expected": {
+        "status": "ok",
+        "required_fields": [
+          "changes",
+          "source",
+          "applied_limit",
+          "_meta"
+        ],
+        "constraints": [
+          "enwiki, wikipedia:en and en.wikipedia all resolve to en.wikipedia; commonswiki resolves to commons.wikimedia.org",
+          "a host-shaped or unresolvable project returns invalid_project with zero outbound requests"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "AC-122 — resolver aliases are reused verbatim; no caller-supplied host is ever interpolated."
+    },
+    {
+      "id": "TC-D-004",
+      "tool_group": "D",
+      "tool": "get_recent_changes",
+      "params": {
+        "project": "enwiki",
+        "namespace": 0,
+        "time_window_seconds": 60,
+        "limit": 5
+      },
+      "category": "edge_case",
+      "expected": {
+        "status": "ok",
+        "required_fields": [
+          "changes",
+          "count",
+          "truncated",
+          "continuation",
+          "resultType",
+          "source",
+          "license",
+          "attribution",
+          "_meta"
+        ],
+        "constraints": [
+          "empty upstream returns changes [], count 0, truncated false, continuation null, resultType complete and full provenance",
+          "a cached response older than RECENT_CHANGES_MAX_CACHE_AGE_MS returns retryable stale_window, never a silent empty result"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "AC-126 — empty-result vs stale-window semantics (no no_changes/page_not_found code)."
+    },
+    {
+      "id": "TC-D-005",
+      "tool_group": "D",
+      "tool": "get_recent_changes",
+      "params": {
+        "project": "enwiki",
+        "continue": "~eyJ2IjoxLCJlbmQiOiIyMDI2LTExLTIxVDE3OjIwOjAwWiJ9"
+      },
+      "category": "edge_case",
+      "expected": {
+        "status": "ok",
+        "required_fields": [
+          "changes",
+          "continuation",
+          "continuation.cursor",
+          "continuation.hops",
+          "window",
+          "_meta"
+        ],
+        "constraints": [
+          "a valid opaque cursor performs exactly one further bounded GET with a frozen end and hops <= 10",
+          "mutated, expired, unparseable or h=11 cursors and filter-hash mismatches return invalid_cursor with zero outbound requests"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "AC-127 — filter-bound, hop-limited continuation; no internal polling loop."
+    },
+    {
+      "id": "TC-D-006",
+      "tool_group": "D",
+      "tool": "get_recent_changes",
+      "params": {
+        "project": "enwiki",
+        "time_window_seconds": 300,
+        "limit": 10
+      },
+      "category": "resilience",
+      "expected": {
+        "status": "ok",
+        "required_fields": [
+          "window",
+          "window.cache_age_ms",
+          "applied_limit",
+          "warnings",
+          "_meta"
+        ],
+        "constraints": [
+          "a repeat call within 60 s makes at most one conditional If-None-Match GET and reports cache_age_ms",
+          "a 429 after bounded retries returns rate_limited with retry_after_seconds; 100% of outbound calls carry USER_AGENT and concurrency <= 3"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "AC-128 — bounded ETag/LRU cache (256 entries, 8 MiB) and politeness."
+    },
+    {
+      "id": "TC-D-007",
+      "tool_group": "D",
+      "tool": "get_recent_changes",
+      "params": {
+        "project": "commonswiki",
+        "namespace": 6,
+        "include_bots": true
+      },
+      "category": "security",
+      "expected": {
+        "status": "ok",
+        "required_fields": [
+          "source",
+          "title",
+          "revision",
+          "timestamp",
+          "license",
+          "attribution",
+          "resultType",
+          "_meta"
+        ],
+        "constraints": [
+          "100% of results carry license, attribution, source, resultType and _meta with title/revision/timestamp null",
+          "every error has non-empty code/message, boolean retryable, non-empty hint and details with no raw upstream body or token"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "AC-129 — provenance/error sweep over both transports including Mcp-Name validation."
+    },
+    {
+      "id": "TC-D-008",
+      "tool_group": "D",
+      "tool": "get_recent_changes",
+      "params": {
+        "project": "enwiki",
+        "namespace": 0,
+        "limit": 5
+      },
+      "category": "security",
+      "expected": {
+        "status": "ok",
+        "required_fields": [
+          "changes",
+          "changes[0].title",
+          "changes[0].comment",
+          "changes[0].untrusted_content",
+          "warnings",
+          "_meta"
+        ],
+        "constraints": [
+          "a prompt-injection canary in comment and title is returned verbatim as untrusted data",
+          "the canary triggers no tool call, executes no instruction and discloses no token"
+        ]
+      },
+      "mode": "fixture",
+      "notes": "AC-125 — recent-change text is attacker-influenceable and is never interpreted."
+    },
+    {
+  "id": "TC-G-020",
+  "tool_group": "G",
+  "tool": "edit_page",
+  "params": {
+    "project": "testwiki",
+    "title": "Sandbox"
+  },
+  "category": "security",
+  "expected": {
+    "status": "error",
+    "required_fields": [
+      "error.code",
+      "error.message",
+      "error.retryable",
+      "error.hint",
+      "error.action"
+    ],
+    "constraints": [
+      "foreign or missing RFC 9207 iss yields invalid_issuer",
+      "zero outbound mutating Action API requests"
+    ]
+  },
+  "mode": "fixture",
+  "notes": "AC-133 / G2 — gated write control plane; tools are off by default."
+},
+    {
+  "id": "TC-G-021",
+  "tool_group": "G",
+  "tool": "edit_page",
+  "params": {
+    "project": "testwiki",
+    "title": "Sandbox"
+  },
+  "category": "security",
+  "expected": {
+    "status": "error",
+    "required_fields": [
+      "error.code",
+      "error.message",
+      "error.retryable",
+      "error.hint",
+      "error.action"
+    ],
+    "constraints": [
+      "token and confirmation supplied as tool arguments yield validation_error",
+      "zero outbound mutating Action API requests"
+    ]
+  },
+  "mode": "fixture",
+  "notes": "AC-135 / G2 — gated write control plane; tools are off by default."
+},
+    {
+  "id": "TC-G-022",
+  "tool_group": "G",
+  "tool": "edit_page",
+  "params": {
+    "project": "testwiki",
+    "title": "Sandbox"
+  },
+  "category": "security",
+  "expected": {
+    "status": "error",
+    "required_fields": [
+      "error.code",
+      "error.message",
+      "error.retryable",
+      "error.hint",
+      "error.action"
+    ],
+    "constraints": [
+      "forged, replayed and expired requestState yield confirmation_invalid",
+      "zero outbound mutating Action API requests"
+    ]
+  },
+  "mode": "fixture",
+  "notes": "AC-137 / G3 — gated write control plane; tools are off by default."
+},
+    {
+  "id": "TC-G-023",
+  "tool_group": "G",
+  "tool": "edit_page",
+  "params": {
+    "project": "testwiki",
+    "title": "Sandbox"
+  },
+  "category": "security",
+  "expected": {
+    "status": "error",
+    "required_fields": [
+      "error.code",
+      "error.message",
+      "error.retryable",
+      "error.hint",
+      "error.action"
+    ],
+    "constraints": [
+      "target revision changed after preview yields target_changed",
+      "zero outbound mutating Action API requests"
+    ]
+  },
+  "mode": "fixture",
+  "notes": "AC-138 / G3 — gated write control plane; tools are off by default."
+},
+    {
+  "id": "TC-G-024",
+  "tool_group": "G",
+  "tool": "delete_page",
+  "params": {
+    "project": "testwiki",
+    "title": "Sandbox"
+  },
+  "category": "security",
+  "expected": {
+    "status": "error",
+    "required_fields": [
+      "error.code",
+      "error.message",
+      "error.retryable",
+      "error.hint",
+      "error.action"
+    ],
+    "constraints": [
+      "capability minted for another target or tool yields capability_invalid",
+      "zero outbound mutating Action API requests"
+    ]
+  },
+  "mode": "fixture",
+  "notes": "AC-140 / G4 — gated write control plane; tools are off by default."
+},
+    {
+  "id": "TC-G-025",
+  "tool_group": "G",
+  "tool": "edit_page",
+  "params": {
+    "project": "testwiki",
+    "title": "Sandbox"
+  },
+  "category": "security",
+  "expected": {
+    "status": "error",
+    "required_fields": [
+      "error.code",
+      "error.message",
+      "error.retryable",
+      "error.hint",
+      "error.action"
+    ],
+    "constraints": [
+      "kill switch engaged yields write_halted and a deny-listed jti is revoked",
+      "zero outbound mutating Action API requests"
+    ]
+  },
+  "mode": "fixture",
+  "notes": "AC-142 / G4+G12 — gated write control plane; tools are off by default."
+},
+    {
+  "id": "TC-G-026",
+  "tool_group": "G",
+  "tool": "edit_page",
+  "params": {
+    "project": "testwiki",
+    "title": "Sandbox"
+  },
+  "category": "security",
+  "expected": {
+    "status": "error",
+    "required_fields": [
+      "error.code",
+      "error.message",
+      "error.retryable",
+      "error.hint",
+      "error.action"
+    ],
+    "constraints": [
+      "mutated or deleted audit entry fails chain verification",
+      "zero outbound mutating Action API requests"
+    ]
+  },
+  "mode": "fixture",
+  "notes": "AC-144 / G6 — gated write control plane; tools are off by default."
+},
+    {
+  "id": "TC-G-027",
+  "tool_group": "G",
+  "tool": "delete_page",
+  "params": {
+    "project": "testwiki",
+    "title": "Sandbox"
+  },
+  "category": "security",
+  "expected": {
+    "status": "error",
+    "required_fields": [
+      "error.code",
+      "error.message",
+      "error.retryable",
+      "error.hint",
+      "error.action"
+    ],
+    "constraints": [
+      "self-approval or one approver yields approval_required",
+      "zero outbound mutating Action API requests"
+    ]
+  },
+  "mode": "fixture",
+  "notes": "AC-145 / G11 — gated write control plane; tools are off by default."
+},
+    {
+  "id": "TC-G-028",
+  "tool_group": "G",
+  "tool": "upload_file",
+  "params": {
+    "project": "testwiki",
+    "title": "Sandbox"
+  },
+  "category": "security",
+  "expected": {
+    "status": "error",
+    "required_fields": [
+      "error.code",
+      "error.message",
+      "error.retryable",
+      "error.hint",
+      "error.action"
+    ],
+    "constraints": [
+      "missing licence/attribution or unsigned ToU yields licence_not_signed_off",
+      "zero outbound mutating Action API requests"
+    ]
+  },
+  "mode": "fixture",
+  "notes": "AC-146 / G8 — gated write control plane; tools are off by default."
+},
+    {
+  "id": "TC-G-029",
+  "tool_group": "G",
+  "tool": "edit_page",
+  "params": {
+    "project": "testwiki",
+    "title": "Sandbox"
+  },
+  "category": "security",
+  "expected": {
+    "status": "error",
+    "required_fields": [
+      "error.code",
+      "error.message",
+      "error.retryable",
+      "error.hint",
+      "error.action"
+    ],
+    "constraints": [
+      "injection canary in title/comment causes no tool call and no write",
+      "zero outbound mutating Action API requests"
+    ]
+  },
+  "mode": "fixture",
+  "notes": "AC-153 / G9 — gated write control plane; tools are off by default."
+},
+    {
+  "id": "TC-G-030",
+  "tool_group": "G",
+  "tool": "protect_page",
+  "params": {
+    "project": "testwiki",
+    "title": "Sandbox"
+  },
+  "category": "edge_case",
+  "expected": {
+    "status": "error",
+    "required_fields": [
+      "error.code",
+      "error.message",
+      "error.retryable",
+      "error.hint",
+      "error.action"
+    ],
+    "constraints": [
+      "dry-run preview captures rollback data with no mutating upstream call",
+      "zero outbound mutating Action API requests"
+    ]
+  },
+  "mode": "fixture",
+  "notes": "AC-149–AC-151 / G7 — gated write control plane; tools are off by default."
+},
+        {
       "id": "TC-E-001",
       "tool_group": "E",
       "tool": "enterprise_get_article",

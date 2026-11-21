@@ -220,9 +220,9 @@ describe('AC-73 — 100% Group C provenance', () => {
 });
 
 describe('AC-94 — all new fixture cases present in the corpus', () => {
-  it('contains TC-C-004…TC-C-011 and 95 total cases (84 + 11 Phase 5 cases)', () => {
+  it('contains TC-C-004…TC-C-011 and 112 total cases (84 + 11 Phase 5 + 6 Group D + 11 gated write cases)', () => {
     const corpus = loadCorpus();
-    expect(corpus.test_cases).toHaveLength(95);
+    expect(corpus.test_cases).toHaveLength(112);
     for (let i = 4; i <= 11; i += 1) {
       expect(corpus.test_cases.some((c) => c.id === `TC-C-${String(i).padStart(3, '0')}`)).toBe(true);
     }

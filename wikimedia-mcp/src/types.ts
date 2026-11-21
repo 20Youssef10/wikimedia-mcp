@@ -28,6 +28,21 @@ export type ToolErrorCode =
   | 'validation_error'
   // Phase 5 (Group G) additive code — finite WGS84 coordinate outside bounds.
   | 'invalid_coordinates'
+  // Write-tools contract 16 v7.0.0 additive codes (all gated off by default).
+  | 'authentication_required'
+  | 'invalid_issuer'
+  | 'insufficient_scope'
+  | 'confirmation_required'
+  | 'confirmation_invalid'
+  | 'capability_invalid'
+  | 'blast_radius_exceeded'
+  | 'write_halted'
+  | 'target_changed'
+  | 'approval_required'
+  | 'licence_not_signed_off'
+  // Group D additive codes — bounded recent-changes polling.
+  | 'invalid_cursor'
+  | 'stale_window'
   | 'invalid_language'
   | 'invalid_project'
   | 'unsupported_project'

@@ -34,15 +34,15 @@ beforeAll(async () => {
 });
 afterAll(() => stdio?.close());
 
-describe('AC-95 — registration of exactly geo_search and get_tables (22 tools)', () => {
-  it('registers 22 tools including the two Phase 5 names and no write/Enterprise/out-of-scope tool', () => {
-    expect(TOOL_NAMES).toHaveLength(22);
+describe('AC-95 — registration of exactly geo_search and get_tables (23 tools after Group D)', () => {
+  it('registers 23 tools including the two Phase 5 names and no write/Enterprise/out-of-scope tool', () => {
+    expect(TOOL_NAMES).toHaveLength(23);
     expect(TOOL_NAMES).toContain('geo_search');
     expect(TOOL_NAMES).toContain('get_tables');
-    expect(TOOL_NAMES.slice(-2)).toEqual(['geo_search', 'get_tables']);
+    expect(TOOL_NAMES.slice(-3)).toEqual(['geo_search', 'get_tables', 'get_recent_changes']);
     for (const forbidden of [
       'compare_revisions', 'get_category_members', 'liftwing_predict', 'wikifunctions',
-      'edit_page', 'upload_file', 'delete_page', 'move_page', 'get_recent_changes',
+      'edit_page', 'upload_file', 'delete_page', 'move_page',
     ]) {
       expect(TOOL_NAMES).not.toContain(forbidden);
     }
@@ -63,7 +63,7 @@ describe('AC-95 — registration of exactly geo_search and get_tables (22 tools)
   it('tools/list over stdio advertises both tools verbatim', async () => {
     const listed = await stdio.request('tools/list', {}, 9501);
     const tools = ((listed.body['result'] as Record<string, unknown> | undefined)?.['tools'] as Array<Record<string, unknown>> | undefined) ?? [];
-    expect(tools).toHaveLength(22);
+    expect(tools).toHaveLength(23);
     const added = tools.filter((tool) => GROUP_G_TOOL_NAMES.includes(String(tool['name']) as 'geo_search' | 'get_tables'));
     expect(added).toHaveLength(2);
     for (const tool of added) {

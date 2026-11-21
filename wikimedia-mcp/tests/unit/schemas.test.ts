@@ -13,7 +13,7 @@ describe('tool schemas (AC-21/AC-22/AC-23)', () => {
     ]);
     // Phase 3 adds five Group C/F tools and Phase 5 adds two read-only Group G
     // tools (geo_search, get_tables); the Phase 1 nine are unchanged.
-    expect(TOOL_NAMES).toHaveLength(22);
+    expect(TOOL_NAMES).toHaveLength(23);
     for (const name of PHASE1_TOOL_NAMES) {
       expect(TOOL_DESCRIPTIONS[name].length).toBeGreaterThan(20);
       expect(z.toJSONSchema(TOOL_SCHEMAS[name]).type).toBe('object');

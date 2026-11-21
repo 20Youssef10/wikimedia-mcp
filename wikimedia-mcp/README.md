@@ -10,17 +10,19 @@ routing headers, `resultType`/`ttlMs`/`cacheScope`).
 advertised as `io.modelcontextprotocol/serverInfo.version` and in the
 `wikimedia://server/info` resource, and mirrored by the package version). The
 major bump from `1.0.0` marks the merge of all three phases into one server,
-whose tool surface grew from 9 (Phase 1) to 20 (Phases 1+2+3) and then to 22
-with the two Phase 5 (Group G) read-only tools. The frozen
+whose tool surface grew from 9 (Phase 1) to 20 (Phases 1+2+3), then to 22 with
+the two Phase 5 (Group G) read-only tools, and then to 23 with the Group D
+read-only `get_recent_changes` tool. The frozen
 per-contract versions (v1.0.1 / v2.0.0 / v3.0.0 / v5.0.0 for the Phase 5
 subset) and the protocol revision `2026-07-28` are independent and unchanged.
 
-**Twenty-two read-only tools:** the nine Phase 1 Group A tools (`search`,
+**Twenty-three read-only tools:** the nine Phase 1 Group A tools (`search`,
 `get_summary`, `get_page`, `get_sections`, `get_related_pages`, `get_media`,
 `get_languages`, `get_random_page`, `get_feed`), the six Phase 2 Group B
 (Wikidata) tools, the five Phase 3 tools (three Group C metrics, two Group F
-media) and the two Phase 5 tools (`geo_search`, `get_tables`) listed below. Both
-**stdio** and **Streamable HTTP** transports are supported. No write tools, no
+media), the two Phase 5 tools (`geo_search`, `get_tables`) and the Group D tool
+(`get_recent_changes`) listed below. Both **stdio** and **Streamable HTTP**
+transports are supported. No write tools, no EventStreams/SSE consumer, no
 Enterprise APIs, no change notifications (`subscriptions/listen` returns
 `-32601`).
 
@@ -266,6 +268,12 @@ non-destructive, open-world and idempotent, and feed **only** the separate
 `G5-M3`/`G5-M4` load counters — never the Phase 1 M1–M6, Phase 2 B-M3/B-M4 or
 Phase 3 CF-M3/CF-M4 gates.
 
+**Group D — bounded recent changes (read-only):**
+
+| Tool | Required | Purpose |
+|---|---|---|
+| `get_recent_changes` | — | Bounded recent-change feed via MediaWiki Action API `action=query&list=recentchanges` polling — **no EventStreams/SSE stream, no subscription**. One GET per call, plus at most one conditional `If-None-Match` revalidation; a bounded 60 s ETag/LRU cache (256 entries, 8 MiB). All arguments optional: `project`/`lang` (shared resolver aliases), `namespace` 0–15, `time_window_seconds` 60–604800 (default 300; service ceiling 86400 is clamped with a named warning), `limit` 1–100000 (default 50; service cap 500 is clamped and surfaced as `applied_limit`), `include_bots`, `change_types` (`edit`/`new`/`log`/`categorize`) and an opaque, filter-bound, hop-limited (≤10) `continue` cursor. Returns `changes[]` with `rev_id`, `parent_rev_id`, sizes/delta and host-derived `url`, plus `count`, `truncated`, `continuation`, `window` (with `cache_age_ms`), `warnings` and full CC BY-SA 4.0 provenance. Empty windows are a successful `resultType: "complete"`; a cache older than 120 s is a retryable `stale_window` error, never a silent empty result. Titles/users/comments are untrusted external data and are returned verbatim. Annotated read-only, non-destructive, open-world and **non-idempotent** (the implicit "now" makes identical calls non-deterministic). Feeds no existing nightly gate. |
+
 All nine Phase 1 tools accept optional `lang` (default `en`) and `project`
 (default `wikipedia`).
 Project aliases include `wiki`/`wp`, `commonswiki`, `wikidatawiki`, Wikimedia
@@ -346,6 +354,14 @@ time (durations 43.7 s, 45.9 s, 40.7 s), with no `TestTimeoutError`.
   before URL interpolation. Wikidata labels/descriptions are returned as data
   (prompt-injection canaries are not promoted to instructions).
 
+## Gated write security package (design + harness only — NOT shipped)
+
+Contract 16 v7.0.0 is implemented as a **conditional package**. In the default deployment `MCP_WRITES_ENABLED=false`: no write tool is registered, no write config object exists, no write credential is loaded, and `npm run verify:read-only` stays 5/5. The five tools (`edit_page`, `protect_page`, `move_page`, `delete_page`, `upload_file`) exist only behind the gated factory in `src/write/` and are exercised by the isolated harness in `tests/write/` (AC-130…AC-155). Registration requires a signed gate record that **does not exist** in this repository, so no write tool is reachable.
+
+Implemented control plane: OAuth issuer/CIMD/scope validation (G2), signed single-use 120 s MRTR confirmation with target re-validation (G3), scoped capability tokens, blast-radius limits and kill switch with `jti` deny-list (G4), append-only HMAC hash-chain audit with 365-day retention (G6), dry-run and documented rollback (G7), upload licence/ToU checklist (G8 — **pending human sign-off**), injection canaries (G9), HTTP hardening config (G10), two-person approval (G11), and an executed fixture incident/revocation drill (G12). Artefacts are in `write-security/`; the G1 re-review is `../wikimedia-mcp-research/17-threat-model-rereview.md`.
+
+**AC-155 / G1 sign-off is NOT complete.** No human Security Architect, Backend Lead or Product Owner signatures exist, and G8 legal sign-off is pending. Consequently no write tool ships in any environment.
+
 ## Known limitations / deviations
 
 - The contract names `@modelcontextprotocol/sdk`; the registry's v1 line
@@ -363,28 +379,32 @@ time (durations 43.7 s, 45.9 s, 40.7 s), with no `TestTimeoutError`.
   concurrency, `overallPass` and failure details; the human-readable
   `[nightly]` console diagnostics are unchanged. Set
   `WMCP_NIGHTLY_REPORT_PATH` to override the output path.
-- Groups D and E corpus cases and the un-evidenced Group G capabilities
+- Group E corpus cases and the un-evidenced Group G capabilities
   (`compare_revisions`, `get_category_members`, `liftwing_predict`, all writes)
-  are documented as out of scope. The two requested Group G tools
-  (`geo_search`, `get_tables`) are implemented in Phase 5. Group B fixtures and
-  AC-33…AC-59, Group C/F fixtures and AC-60…AC-94 (except nightly live
-  AC-71/72/92), and the Phase 5 fixtures AC-95…AC-119 (TC-G-009…019) run in
-  the merge gate with zero live network calls. The live cases (AC-42/45/59,
-  TC-B-001/003/005/008/030, TC-C-001/002, TC-F-001) run nightly with
-  `WMCP_LIVE=1`.
+  remain out of scope. The two requested Group G tools (`geo_search`,
+  `get_tables`) are implemented in Phase 5; the Group D bounded
+  `get_recent_changes` tool is implemented per contract 15 v6.0.0 (Action API
+  polling only — the internal EventStreams consumer was dropped by the
+  2026-11-21 spike report 12). Group B fixtures and AC-33…AC-59, Group C/F
+  fixtures and AC-60…AC-94 (except nightly live AC-71/72/92), the Phase 5
+  fixtures AC-95…AC-119 (TC-G-009…019) and the Group D fixtures AC-120…AC-129
+  (TC-D-001…008; corpus 95 → 101) run in the merge gate with zero live network
+  calls. The live cases (AC-42/45/59, TC-B-001/003/005/008/030, TC-C-001/002,
+  TC-F-001) run nightly with `WMCP_LIVE=1`.
 - The independent `/tmp/opencode/qa-mcp-smoke.mjs` and `qa-mcp-http.mjs` scripts
-  assert *exactly twenty* tools (the Phase 1+2+3 invariant). With Phase 5
-  registered they report 22: only the tool-count check differs. They are
+  assert *exactly twenty-two* tools (the Phase 1–5 invariant). With Group D
+  registered they report 23: only the tool-count check differs. They are
   intentionally left unmodified; the in-repo contract tests assert the full
-  22-tool catalogue.
+  23-tool catalogue.
 - Group C/F keep a separate nightly load profile (`CF-M3` p95 budgets and
   `CF-M4` 429-count == 0). Phase 3 tools do **not** feed the Phase 1 M3/M4 or
   Phase 2 B-M3/B-M4 gates. Phase 5 tools (`geo_search`, `get_tables`) feed only
   their own `G5-M3` (per-tool p95 < 2 s, ≥150 samples, excluding network-bound
   HTML fetches) and `G5-M4` (429 count == 0) counters, never the M1–M6,
-  B-M3/B-M4 or CF-M3/CF-M4 gates. No live Analytics/Attribution/imageinfo call
-  runs in the fixture-only merge gate (`AC-71`, `AC-72`, `AC-92` are nightly
-  live).
+  B-M3/B-M4 or CF-M3/CF-M4 gates. The Group D tool feeds **no** existing nightly
+  gate (optional `D-M3`/`D-M4` counters would be nightly-only and opt-in; none
+  is registered). No live Analytics/Attribution/imageinfo call runs in the
+  fixture-only merge gate (`AC-71`, `AC-72`, `AC-92` are nightly live).
 - Language variants without their own wiki (`zh-hans`, `pt-br`, ...) are routed
   to their real base-language host; the full requested code is retained in
   `lang`/`source`. Codes with real wikis (`be-tarask`, `zh-min-nan`, `zh-tw`)

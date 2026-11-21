@@ -13,20 +13,24 @@ import { GROUP_C_DESCRIPTIONS, GROUP_C_SCHEMAS, GROUP_C_TOOL_NAMES } from '../..
 import { GROUP_F_DESCRIPTIONS, GROUP_F_SCHEMAS, GROUP_F_TOOL_NAMES } from '../../media/schemas.js';
 import { GROUP_G_DESCRIPTIONS, GROUP_G_SCHEMAS, GROUP_G_TOOL_NAMES } from '../../groupg/schemas.js';
 import { createGroupGHandlers } from '../../groupg/handlers.js';
+import { GROUP_D_DESCRIPTIONS, GROUP_D_SCHEMAS, GROUP_D_TOOL_NAMES } from '../../groupd/schemas.js';
+import { createGroupDHandlers } from '../../groupd/handlers.js';
 
 /** Phase 3 names — all five are pure reads and idempotent (§3.6). */
 const GROUP_CF_TOOL_NAMES: readonly string[] = [...GROUP_C_TOOL_NAMES, ...GROUP_F_TOOL_NAMES];
 
 /**
  * Static, integrity-checked tool catalogue (SR-12): nine Phase 1 tools, six
- * Phase 2 Group B tools, five Phase 3 Group C/F tools and two Phase 5 Group G
- * tools (geo_search, get_tables). No write/Enterprise tool is registered.
+ * Phase 2 Group B tools, five Phase 3 Group C/F tools, two Phase 5 Group G
+ * tools (geo_search, get_tables) and one Group D tool (get_recent_changes).
+ * No write/Enterprise tool is registered.
  */
 export const TOOL_NAMES: readonly string[] = [
   ...PHASE1_TOOL_NAMES,
   ...GROUP_B_TOOL_NAMES,
   ...GROUP_CF_TOOL_NAMES,
   ...GROUP_G_TOOL_NAMES,
+  ...GROUP_D_TOOL_NAMES,
 ];
 
 /**
@@ -66,11 +70,15 @@ export function buildMcpServer(config: Config, client: WikimediaClient): McpServ
 
   const server = new McpServer({ name: DISCOVERY.serverInfo.name, version: DISCOVERY.serverInfo.version }, options);
 
-  const handlers = { ...createHandlers(client, config), ...createGroupGHandlers(client, config) };
+  const handlers = {
+    ...createHandlers(client, config),
+    ...createGroupGHandlers(client, config),
+    ...createGroupDHandlers(client, config),
+  };
   const groupSchemas = buildGroupBSchemas(config);
   const descriptions: Record<string, string> = {
     ...TOOL_DESCRIPTIONS, ...GROUP_B_DESCRIPTIONS, ...GROUP_C_DESCRIPTIONS, ...GROUP_F_DESCRIPTIONS,
-    ...GROUP_G_DESCRIPTIONS,
+    ...GROUP_G_DESCRIPTIONS, ...GROUP_D_DESCRIPTIONS,
   };
   const schemas: Record<string, StandardSchemaWithJSON> = {
     ...(TOOL_SCHEMAS as unknown as Record<string, StandardSchemaWithJSON>),
@@ -78,6 +86,7 @@ export function buildMcpServer(config: Config, client: WikimediaClient): McpServ
     ...(GROUP_C_SCHEMAS as unknown as Record<string, StandardSchemaWithJSON>),
     ...(GROUP_F_SCHEMAS as unknown as Record<string, StandardSchemaWithJSON>),
     ...(GROUP_G_SCHEMAS as unknown as Record<string, StandardSchemaWithJSON>),
+    ...(GROUP_D_SCHEMAS as unknown as Record<string, StandardSchemaWithJSON>),
   };
   for (const name of TOOL_NAMES) {
     const schema = schemas[name];
@@ -93,10 +102,13 @@ export function buildMcpServer(config: Config, client: WikimediaClient): McpServ
           readOnlyHint: true,
           destructiveHint: false,
           openWorldHint: true,
-          idempotentHint: GROUP_B_TOOL_NAMES.includes(name as typeof GROUP_B_TOOL_NAMES[number])
-            || GROUP_CF_TOOL_NAMES.includes(name)
-            || GROUP_G_TOOL_NAMES.includes(name as typeof GROUP_G_TOOL_NAMES[number])
-            || IDEMPOTENT_TOOLS.has(name),
+          // Group D is deliberately non-idempotent: the implicit "now" makes
+          // two identical calls return different windows (contract §3.5).
+          idempotentHint: !GROUP_D_TOOL_NAMES.includes(name as typeof GROUP_D_TOOL_NAMES[number])
+            && (GROUP_B_TOOL_NAMES.includes(name as typeof GROUP_B_TOOL_NAMES[number])
+              || GROUP_CF_TOOL_NAMES.includes(name)
+              || GROUP_G_TOOL_NAMES.includes(name as typeof GROUP_G_TOOL_NAMES[number])
+              || IDEMPOTENT_TOOLS.has(name)),
         },
       },
       async (args: unknown, ctx) => handler(
