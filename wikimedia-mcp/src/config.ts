@@ -27,6 +27,13 @@ const rawSchema = z.object({
   MCP_HTTP_PATH: z.string().startsWith('/').default('/mcp'),
   MCP_ALLOWED_ORIGINS: z.string().default(''),
   MCP_ALLOWED_HOSTS: z.string().default('127.0.0.1,localhost'),
+  // HTTP hardening gates (report 08 §5.9.1 / T-11). Off by default so the
+  // existing local, non-browser stdio/HTTP hosts keep working. MUST be enabled
+  // for any future write-enabled deployment (see 14-read-only-signoff.md).
+  MCP_REQUIRE_ORIGIN: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+  MCP_REQUIRE_CSRF: z.enum(['true', 'false']).default('false').transform((v) => v === 'true'),
+  MCP_CSRF_SECRET: z.string().default(''),
+  MCP_CSRF_TOKEN_TTL_MS: positiveInt(300000),
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   METADATA_CACHE_TTL_MS: positiveInt(3600000),
   MAX_RESULT_BYTES: positiveInt(65536),
@@ -59,6 +66,10 @@ export type Config = {
   readonly httpPath: string;
   readonly allowedOrigins: readonly string[];
   readonly allowedHosts: readonly string[];
+  readonly requireOrigin: boolean;
+  readonly requireCsrf: boolean;
+  readonly csrfSecret: string;
+  readonly csrfTokenTtlMs: number;
   readonly logLevel: 'debug' | 'info' | 'warn' | 'error';
   readonly metadataCacheTtlMs: number;
   readonly maxResultBytes: number;
@@ -101,6 +112,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
   if (raw.RETRY_BACKOFF_MAX_MS < raw.RETRY_BACKOFF_BASE_MS) {
     throw new Error('RETRY_BACKOFF_MAX_MS must be >= RETRY_BACKOFF_BASE_MS');
+  }
+  // Fail closed: a CSRF gate without a strong server-side secret would be
+  // trivially forgeable. Never derive the secret from a default value.
+  if (raw.MCP_REQUIRE_CSRF && raw.MCP_CSRF_SECRET.length < 16) {
+    throw new Error(
+      'MCP_REQUIRE_CSRF=true requires MCP_CSRF_SECRET with at least 16 characters',
+    );
   }
   // Phase 2 §3.5 / §4.7: every SPARQL endpoint in the fallback chain must be
   // https (SR-3 SSRF defence). Reject at boot, never at request time.
@@ -146,6 +164,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     httpPath: raw.MCP_HTTP_PATH,
     allowedOrigins,
     allowedHosts,
+    requireOrigin: raw.MCP_REQUIRE_ORIGIN,
+    requireCsrf: raw.MCP_REQUIRE_CSRF,
+    csrfSecret: raw.MCP_CSRF_SECRET,
+    csrfTokenTtlMs: raw.MCP_CSRF_TOKEN_TTL_MS,
     logLevel: raw.LOG_LEVEL,
     metadataCacheTtlMs: raw.METADATA_CACHE_TTL_MS,
     maxResultBytes: raw.MAX_RESULT_BYTES,

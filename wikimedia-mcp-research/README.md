@@ -55,6 +55,7 @@ Where a claim's precision was previously overstated or understated, the current 
 | 2026-11-21 (Phase 3) | Added report 11 and implemented Groups C+F: `get_pageviews`, `get_most_read`, `get_unique_devices`, `get_file_metadata`, `get_image_info` (20 total tools). Attribution beta primary with Action `extmetadata` fallback, per-file licences, zero new config keys, AC-60…AC-94, 17 new corpus cases (84 total). Live smoke verified against Analytics and Commons. 278 tests passing, independent QA green. |
 | 2026-11-21 (hardening & spike) | Capped Vitest at 4 workers / 45 s timeouts — three consecutive `npm test` runs pass with identical counts. `serverInfo.version` bumped 1.0.0 → 3.0.0 (contract/protocol versions unchanged). Two additional clean nightly baselines (p95R 287–370 ms, p95A 504–638 ms, 0 429s) — no §4.6 re-baselining needed. Group D spike (report 12): registry demand still ~zero; DROP the always-on EventStreams consumer, BUILD only a bounded stateless `get_recent_changes` via Action API polling. Enterprise remains excluded; modern-only host stance retained. |
 | 2026-11-21 (Phase 5) | Added report 13 and implemented the requested Group G slice: `geo_search` and `get_tables` (22 tools), Parsoid-HTML table extraction with deterministic caps, geosearch bounds, separate G5-M3/G5-M4 counters, AC-95…AC-119, 11 new corpus cases (95 total). Write tools remain hard-blocked: gate assessment found G1–G12 largely unevidenced. 308 tests passing, independent QA green. |
+| 2026-11-21 (read-only sign-off) | Closed the two independently closable gates: G10 (optional `MCP_REQUIRE_ORIGIN`, documented TLS, dormant HMAC CSRF mechanism with test-only proof, dead duplicate header validator removed) and G5 (automated shipped-artifact read-only assertion). Report 14 records the read-only sign-off; G1–G4, G6–G9, G11–G12 remain NOT EVIDENCED and write tools stay hard-blocked pending a WP0–WP4 security work package. 328 tests passing, 5/5 read-only assertion, independent QA green. |
 
 ## Reports
 
@@ -73,6 +74,7 @@ Where a claim's precision was previously overstated or understated, the current 
 | `11-phase3-contract.md` | Frozen Phase 3 (metrics + Commons/Groups C+F) contract, AC-60…AC-94 | Frozen |
 | `12-group-d-spike.md` | EventStreams feasibility spike and BUILD/DROP decision | Decision: bounded poll tool, drop SSE consumer |
 | `13-phase5-contract.md` | Frozen Phase 5 (requested Group G: geosearch + tables), AC-95…AC-119 | Frozen v5.0.0 |
+| `14-read-only-signoff.md` | Gate status G1–G12, read-only deployment sign-off, blocked write-enablement work package | Read-only signed off; writes blocked |
 | `test-corpus.json` | 95 machine-readable test cases (A–G, all categories) | Validated JSON |
 
 ## How to use these documents

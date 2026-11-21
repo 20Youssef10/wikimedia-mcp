@@ -16,6 +16,11 @@ describe('configuration (report 09 §2.6)', () => {
     expect(config.httpPort).toBe(3000);
     expect(config.httpPath).toBe('/mcp');
     expect(config.allowedHosts).toEqual(['127.0.0.1', 'localhost']);
+    // HTTP hardening gates are OFF by default for existing non-browser hosts.
+    expect(config.requireOrigin).toBe(false);
+    expect(config.requireCsrf).toBe(false);
+    expect(config.csrfSecret).toBe('');
+    expect(config.csrfTokenTtlMs).toBe(300000);
     expect(config.wikidataSparql.endpoint).toBe('https://query.wikidata.org/sparql');
     expect(config.wikidataSparql.timeoutMs).toBe(60000);
     expect(config.attribution.apiVersion).toBe('v0-beta');
@@ -33,6 +38,23 @@ describe('configuration (report 09 §2.6)', () => {
     expect(() => loadConfig({
       USER_AGENT: 'x', MCP_HTTP_HOST: '0.0.0.0', MCP_ALLOWED_ORIGINS: '', MCP_ALLOWED_HOSTS: '',
     })).toThrow(/Public bind requires/);
+  });
+
+  it('parses the HTTP hardening flags and fails closed on an absent CSRF secret (G10)', () => {
+    const enabled = loadConfig({
+      USER_AGENT: 'x',
+      MCP_REQUIRE_ORIGIN: 'true',
+      MCP_REQUIRE_CSRF: 'true',
+      MCP_CSRF_SECRET: 'a-strong-test-secret-value',
+      MCP_CSRF_TOKEN_TTL_MS: '1000',
+    });
+    expect(enabled.requireOrigin).toBe(true);
+    expect(enabled.requireCsrf).toBe(true);
+    expect(enabled.csrfSecret).toBe('a-strong-test-secret-value');
+    expect(enabled.csrfTokenTtlMs).toBe(1000);
+    expect(() => loadConfig({
+      USER_AGENT: 'x', MCP_REQUIRE_CSRF: 'true', MCP_CSRF_SECRET: 'short',
+    })).toThrow(/MCP_CSRF_SECRET/);
   });
 
   it('recognises loopback hosts', () => {

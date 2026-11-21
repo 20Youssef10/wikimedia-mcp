@@ -1,12 +1,16 @@
 import { WikimediaClient } from '../../src/upstream/client.js';
 import { Logger } from '../../src/observability/logging.js';
-import { startHttpTransport, type HttpTransportHandle } from '../../src/transport/streamable-http.js';
+import { startHttpTransport, type HttpTransportHandle, type ServerFactory } from '../../src/transport/streamable-http.js';
 import type { Config } from '../../src/config.js';
 
 export type TestHttpServer = HttpTransportHandle & { port: number; url: string };
 
-export async function startTestHttp(config: Config, client: WikimediaClient): Promise<TestHttpServer> {
-  const handle = startHttpTransport(config, client, new Logger('error'));
+export async function startTestHttp(
+  config: Config,
+  client: WikimediaClient,
+  factory?: ServerFactory,
+): Promise<TestHttpServer> {
+  const handle = startHttpTransport(config, client, new Logger('error'), factory);
   await new Promise<void>((resolve) => handle.server.listen(0, '127.0.0.1', () => resolve()));
   const address = handle.server.address();
   const port = typeof address === 'object' && address !== null ? address.port : 0;

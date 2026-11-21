@@ -68,6 +68,41 @@ Wrong `Content-Type` → `415`; bad `Origin`/`Host` → `403`; header/body misma
 `-32020` with HTTP 400. Public binds require both `MCP_ALLOWED_ORIGINS` and
 `MCP_ALLOWED_HOSTS` to be set.
 
+### Deployment: TLS termination, Origin and CSRF
+
+The server speaks **plain HTTP only** and binds to loopback (`127.0.0.1`) by
+default. It does not implement TLS itself. For any network-facing deployment,
+**terminate TLS at a reverse proxy** (for example nginx, Caddy, Envoy or a cloud
+load balancer) in front of it:
+
+- Keep the server on loopback (or a private interface); let the proxy own the
+  certificate, HTTP/2 and public exposure. Do not expose the raw HTTP port.
+- The proxy must forward the `Origin` and `Host` headers unchanged and must not
+  rewrite or strip `Mcp-*` headers — the server validates them against the
+  JSON-RPC body on every request (the v2 SDK's `createMcpHandler`).
+- Configure `MCP_ALLOWED_ORIGINS` and `MCP_ALLOWED_HOSTS` as **explicit,
+  exact** values (scheme + host + port for origins). **Never use a wildcard
+  (`*`) origin, and never combine a wildcard CORS policy with credentials.**
+  There is no CORS credential configuration in this server: it accepts only the
+  listed origins and rejects every other `Origin` with HTTP 403.
+- Re-resolve / pin the public hostname at the proxy to defeat DNS rebinding;
+  do not let a rebinding attacker reach the loopback listener.
+
+Two optional hardening flags (both **off by default** so existing CLI and
+non-browser hosts keep working) are provided for the HTTP transport:
+
+| Flag | Default | Effect when `true` |
+|------|---------|--------------------|
+| `MCP_REQUIRE_ORIGIN` | `false` | A request with a **missing** `Origin` is rejected with HTTP 403 (a present but unlisted `Origin` is always rejected). |
+| `MCP_REQUIRE_CSRF` | `false` | A state-changing call (a `tools/call` to a deny-listed write tool) requires a valid `Mcp-Csrf-Token` request header; a fresh signed token is returned in `MCP-CSRF-Token` on each response (double-submit pattern). Boot fails unless `MCP_CSRF_SECRET` is at least 16 characters. |
+
+> **Mandatory for write enablement:** both flags **MUST be `true`** for any
+> future write-enabled deployment, alongside the remaining report 08 gates
+> (G1–G12). Today they are off because this server is **read-only** — no write
+> tool and no write credential exists. The CSRF mechanism is shipped and tested
+> with a test-only harness (never registered in production); it does not itself
+> enable writing. See `../wikimedia-mcp-research/14-read-only-signoff.md`.
+
 ### Configuration
 
 All keys from contract §2.6 are Zod-validated at boot; invalid values terminate
