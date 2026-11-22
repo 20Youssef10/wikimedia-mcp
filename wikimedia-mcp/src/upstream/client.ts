@@ -5,6 +5,8 @@ import { ConcurrencyLimiter } from './limiter.js';
 import { UpstreamError, parseRetryAfter, withRetry, type RetryOutcome } from './retry.js';
 import { isRecord } from '../protocol/meta.js';
 import { PolitenessTelemetry, type PolitenessSnapshot } from '../observability/politeness.js';
+import { CONTENT_CACHE_MAX_TTL_MS, cacheControlMaxAgeMs, contentCacheKey } from '../protocol/caching.js';
+import type { CacheTier } from '../types.js';
 
 export type FetchLike = (
   url: string,
@@ -18,9 +20,23 @@ export type UpstreamResponse = {
   retryAfterMs: number | null;
   /** Response headers (ETag / Last-Modified feed Phase 2 Wikibase provenance). */
   headers: Record<string, string>;
+  /** WP13 — additive cache tier; absent on ordinary uncached responses. */
+  cache_tier?: CacheTier;
+  /** WP13 — true when a conditional revalidation returned 304. */
+  revalidated_304?: boolean;
 };
 
 type CacheEntry = { value: unknown; expiresAt: number };
+
+/** WP13 — bounded content cache entry (body kept so 304 can avoid a re-fetch). */
+type ContentCacheEntry = {
+  json: unknown;
+  text: string;
+  etag: string | null;
+  ttlMs: number;
+  expiresAt: number;
+  fetchedAt: number;
+};
 
 /**
  * Upper bound on how long a coalesced waiter may wait on a shared upstream
@@ -58,6 +74,15 @@ export function buildCoalesceKey(
 
 function hostnameOf(url: string): string {
   try { return new URL(url).hostname; } catch { return 'unknown host'; }
+}
+
+/** Case-insensitive lookup over a plain header record (WP13 ETag handling). */
+function headerOf(headers: Record<string, string>, name: string): string | null {
+  const target = name.toLowerCase();
+  for (const [key, value] of Object.entries(headers)) {
+    if (key.toLowerCase() === target) return value;
+  }
+  return null;
 }
 
 function errorDetail(error: unknown): string {
@@ -111,6 +136,9 @@ export class WikimediaClient {
   readonly politeness = new PolitenessTelemetry();
   private readonly dispatcher: Agent;
   private readonly cache = new Map<string, CacheEntry>();
+  /** WP13 — separate content tier; the metadata cache above is untouched. */
+  private readonly contentCache = new Map<string, ContentCacheEntry>();
+  private contentCacheHits = 0;
   private readonly inFlight = new Map<string, InFlightEntry>();
   private readonly fetchImpl: FetchLike;
   private readonly useDispatcher: boolean;
@@ -366,6 +394,82 @@ export class WikimediaClient {
     ));
     return outcome.value;
   }
+
+  /**
+   * WP13 — bounded content tier. Uses the upstream `Cache-Control: max-age`
+   * (clamped to `CONTENT_CACHE_MAX_TTL_MS`) as the freshness lifetime and the
+   * `ETag` for one conditional revalidation per hit. A 304 serves the cached
+   * body without a full re-fetch. This is a separate map: the metadata cache,
+   * its TTLs and cache keys are unchanged.
+   */
+  async cachedContent(
+    url: string,
+    options: {
+      signal?: AbortSignal;
+      backend?: string;
+      accept?: string;
+      headers?: Record<string, string>;
+      coalesce?: boolean;
+    } = {},
+  ): Promise<UpstreamResponse> {
+    const key = contentCacheKey(url, options);
+    const now = Date.now();
+    const entry = this.contentCache.get(key);
+    const extraHeaders = options.headers ?? {};
+    // A conditional request is only ever sent when we hold a matching ETag.
+    const etag = entry?.etag ?? null;
+    const sentConditional = etag !== null;
+    const revalidationHeaders = etag === null
+      ? extraHeaders
+      : { ...extraHeaders, 'If-None-Match': etag };
+
+    const response = await this.getJson(url, {
+      ...options,
+      ...(revalidationHeaders === extraHeaders && options.headers === undefined
+        ? {}
+        : { headers: revalidationHeaders }),
+    });
+
+    if (response.status === 304 && entry !== undefined && sentConditional) {
+      this.contentCacheHits += 1;
+      // Upstream confirmed the representation is current. Refresh only the
+      // freshness window; the cached body is returned unchanged.
+      const refresh = cacheControlMaxAgeMs(headerOf(response.headers, 'cache-control')) ?? entry.ttlMs;
+      entry.fetchedAt = now;
+      entry.expiresAt = now + Math.min(refresh, CONTENT_CACHE_MAX_TTL_MS);
+      return {
+        ...response,
+        status: 200,
+        json: entry.json,
+        text: entry.text,
+        cache_tier: 'content',
+        revalidated_304: true,
+      };
+    }
+
+    if (response.status === 200) {
+      const maxAgeMs = cacheControlMaxAgeMs(headerOf(response.headers, 'cache-control'));
+      if (maxAgeMs !== null) {
+        const etag = headerOf(response.headers, 'etag');
+        this.contentCache.set(key, {
+          json: response.json,
+          text: response.text,
+          etag,
+          ttlMs: maxAgeMs,
+          expiresAt: now + maxAgeMs,
+          fetchedAt: now,
+        });
+        return { ...response, cache_tier: 'content' };
+      }
+      // A 200 without a usable freshness lifetime invalidates any stale entry.
+      this.contentCache.delete(key);
+    }
+    return response;
+  }
+
+  /** WP13 — number of content entries and conditional hits (fixture telemetry). */
+  get contentCacheSize(): number { return this.contentCache.size; }
+  get contentRevalidationCount(): number { return this.contentCacheHits; }
 
   /** Cached siteinfo/rightsinfo/metadata getter with a strict TTL. */
   async cached<T>(key: string, loader: () => Promise<T>, ttlMs = this.config.metadataCacheTtlMs): Promise<T> {

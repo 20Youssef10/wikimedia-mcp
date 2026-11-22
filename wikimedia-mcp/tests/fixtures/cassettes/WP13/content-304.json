@@ -1,0 +1,16 @@
+{
+  "case_id": "WP13-CONTENT-304",
+  "tool": "get_summary",
+  "request": {
+    "path": "/api/rest_v1/page/summary/Wp13FixturePage",
+    "headers": { "if-none-match": "\"wp13-etag-1\"" }
+  },
+  "response": {
+    "status": 304,
+    "headers": {
+      "etag": "\"wp13-etag-1\"",
+      "cache-control": "public, max-age=60"
+    },
+    "body": null
+  }
+}

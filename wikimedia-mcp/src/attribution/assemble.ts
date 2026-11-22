@@ -1,4 +1,6 @@
-import type { Attribution, License, Provenance, ResolveResult, ToolPayload } from '../types.js';
+import type {
+  Attribution, License, Provenance, ProvenanceBlock, ResolveResult, ToolPayload,
+} from '../types.js';
 
 export const DEFAULT_LICENSE: License = {
   title: 'Creative Commons Attribution-ShareAlike 4.0 International',
@@ -68,6 +70,26 @@ export function assembleProvenance(
   };
 }
 
+/**
+ * WP15 — derive the compact block from an already-assembled flat provenance
+ * object, so the grouped and flat views can never diverge. The disclaimer and
+ * any licence hint are preserved verbatim.
+ */
+export function assembleProvenanceBlock(provenance: Provenance): ProvenanceBlock {
+  const { source, license, attribution } = provenance;
+  const licencePart = license.url === null
+    ? license.short
+    : `${license.short} (${license.url})`;
+  return {
+    source,
+    license,
+    attribution,
+    attribution_text: `${attribution.text} — ${licencePart}. ${attribution.disclaimer}`,
+    disclaimer: attribution.disclaimer,
+    ...(attribution.hint === undefined ? {} : { hint: attribution.hint }),
+  };
+}
+
 export function withProvenance(
   payload: ToolPayload,
   target: ResolveResult,
@@ -78,7 +100,12 @@ export function withProvenance(
     timestamp?: string | null;
   } = {},
 ): ToolPayload {
-  return { ...payload, ...assembleProvenance(target, title, options) };
+  const provenance = assembleProvenance(target, title, options);
+  return {
+    ...payload,
+    ...provenance,
+    provenance_block: assembleProvenanceBlock(provenance),
+  };
 }
 
 /** List results: top-level provenance with null revision/timestamp (§3). */

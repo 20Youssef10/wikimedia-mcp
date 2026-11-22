@@ -24,6 +24,21 @@ export type Provenance = {
   timestamp: string | null;
 };
 
+/**
+ * WP15 — compact provenance UX block. Additive only: the flat `source`,
+ * `license` and `attribution` fields remain on the payload unchanged.
+ */
+export type ProvenanceBlock = {
+  source: string;
+  license: License;
+  attribution: Attribution;
+  /** Ready-to-render, single-line attribution including the disclaimer. */
+  attribution_text: string;
+  disclaimer: string;
+  /** Carried over verbatim when the flat attribution carries a hint. */
+  hint?: string;
+};
+
 export type ToolErrorCode =
   | 'validation_error'
   // Phase 5 (Group G) additive code — finite WGS84 coordinate outside bounds.
@@ -83,9 +98,37 @@ export type ToolError = {
   details: Record<string, unknown>;
   /** Additive field used by SPARQL guard errors (TC-B-006 / AC-48). */
   limits?: Record<string, unknown>;
+  /**
+   * WP14 — additive recovery guidance. Present only where a deterministic
+   * recovery exists; never derived from raw upstream text, titles or tokens.
+   */
+  suggested_tool?: string;
+  next_action?: string;
 };
 
-export type ToolPayload = Record<string, unknown> & Partial<Provenance>;
+/**
+ * WP12 — closed set of explainable relevance labels. These describe *why* an
+ * item matched; they never reorder results or alter the upstream ranking.
+ */
+export type RelevanceReason =
+  | 'title_exact'
+  | 'title_prefix'
+  | 'title_contains'
+  | 'snippet_match'
+  | 'description_match'
+  | 'unspecified';
+
+/**
+ * WP13 — cache tiers. `metadata` is the pre-existing strict-TTL metadata cache;
+ * `content` is the bounded ETag/Cache-Control revalidation tier. Both values are
+ * closed; no caller-supplied tier is accepted.
+ */
+export type CacheTier = 'metadata' | 'content';
+
+export type ToolPayload = Record<string, unknown> & Partial<Provenance> & {
+  cache_tier?: CacheTier;
+  provenance_block?: ProvenanceBlock;
+};
 
 export type ToolResponse = {
   content: Array<{ type: 'text'; text: string }>;

@@ -188,3 +188,21 @@ describe('AC-94 — all new media fixture cases present', () => {
     }
   });
 });
+
+describe('WP15 — additive provenance block on media results (superset only)', () => {
+  it('groups source/license/attribution without removing the flat fields', async () => {
+    harness.state.simulate = undefined;
+    const result = await harness.handlers['get_file_metadata']({ filename: FILE, project: 'commonswiki' });
+    const view = payload(result);
+    const block = view['provenance_block'] as Record<string, unknown>;
+    expect(block).toBeDefined();
+    expect(block['source']).toBe(view['source']);
+    expect(block['license']).toEqual(view['license']);
+    expect(block['attribution']).toEqual(view['attribution']);
+    expect(String(block['attribution_text'])).toContain(String((view['license'] as Record<string, unknown>)['short']));
+    expect(String(block['attribution_text'])).toContain('You remain responsible for licence compliance.');
+    expect(block['disclaimer']).toBe((view['attribution'] as Record<string, unknown>)['disclaimer']);
+    // Flat fields remain exactly where they were.
+    for (const key of ['source', 'license', 'attribution']) expect(key in view).toBe(true);
+  });
+});

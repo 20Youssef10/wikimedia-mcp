@@ -1,0 +1,19 @@
+{
+  "case_id": "WP13-CONTENT-NO-STORE",
+  "tool": "get_summary",
+  "request": {
+    "path": "/api/rest_v1/page/summary/Wp13NoStorePage",
+    "headers": {}
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "etag": "\"wp13-no-store-etag\"",
+      "cache-control": "no-store"
+    },
+    "body": {
+      "title": "Wp13NoStorePage",
+      "description": "Not cacheable"
+    }
+  }
+}

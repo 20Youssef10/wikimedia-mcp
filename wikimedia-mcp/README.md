@@ -421,7 +421,50 @@ npm run docs:tools -- --check                   # CI: non-zero if TOOLS.md is st
   and fails CI on any drift, so additive fields from later work packages must
   be followed by `npm run docs:tools`.
 
+## Demand telemetry and validation gate (WP6)
+
+`src/observability/demand-telemetry.ts` records **counts, not requests**: tool
+name, call/success/failure counts, and (only when an opaque session surrogate
+is supplied) single-call resolution. It never reads a title, query string,
+snippet, token, raw subject or credential, and it never persists a session
+surrogate. Deliberate demand signals (`revision_diff_requested`,
+`category_traversal_requested`, and search-session diff intent) are explicit
+counters; search text is **not** mined to infer demand. The nightly report
+carries an additive `demand_signals` block (schema_version stays 1), and the
+separate `reports/demand.json` / `reports/demand-decision.json` outputs use the
+same pretty, newline-terminated JSON convention as `reports/nightly-live.json`.
+All three paths are gitignored; override with `WMCP_DEMAND_REPORT_PATH` and
+`WMCP_DEMAND_DECISION_PATH` for isolated runs. Archive the two demand files by
+timestamped copy using the `NIGHTLY-SCHEDULER.md` §5 procedure before each new
+evaluation overwrites them.
+
+Decision rules (report 18 §6 / plan WP6), evaluated by
+`evaluateDemandDecision()`:
+
+- `compare_revisions` → BUILD iff **≥3 downstream revision-diff requests** OR
+  (**≥2% of instrumented search sessions** request a diff on each of **≥7
+  consecutive UTC days**). Otherwise DROP.
+- `get_category_members` → BUILD iff **measured category traversal demand** OR
+  a **named user request with requester and date**. Only a one-way requester
+  reference and the date are written to the decision JSON; no raw name is
+  stored.
+
+**Evaluated 2026-11-22:** both decisions are **DROP / defer**. This is a fresh
+local deployment with no external users and no observed demand signals; the
+nightly gate's own calls are self-tests and are deliberately excluded. No
+`compare_revisions` or `get_category_members` tool was built, and the default
+catalogue remains 28 tools. A genuine trigger must be re-measured before WP7 or
+WP8 may start.
+
 ## Known limitations / deviations
+
+- WP6 session-level signals (single-call resolution and the search-session diff
+  rate) require an opaque session surrogate to be supplied to `DemandTelemetry`.
+  The tool-handler layer has no session concept, so the default server records
+  tool-level counts only; session-level counters stay at zero rather than being
+  guessed from arguments. The downstream-request and named-request triggers are
+  therefore the observable paths in this deployment. No query text is inspected
+  to manufacture a session or a demand signal.
 
 - The contract names `@modelcontextprotocol/sdk`; the registry's v1 line
   (`@modelcontextprotocol/sdk@1.32.2`) implements only up to 2025-11-25. The

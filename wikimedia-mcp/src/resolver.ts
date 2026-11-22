@@ -1,5 +1,5 @@
 import { hostLangFor, isValidLang, normalizeLang } from './lang.js';
-import type { ResolveResult } from './types.js';
+import type { RelevanceReason, ResolveResult } from './types.js';
 
 /**
  * Fixed allowlist of hostnames the resolver may ever produce. No caller-supplied
@@ -144,6 +144,68 @@ export function resolveTarget(params: { lang?: string; project?: string }): Reso
     restBase: `https://${host}/api/rest_v1`,
     actionUrl: `https://${host}/w/api.php`,
     articleUrl: (title: string) => `https://${host}/wiki/${encodedTitle(title)}?wprov=afsw1`,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* WP12 — explainable ranking hints and canonical-title resolution             */
+/* -------------------------------------------------------------------------- */
+
+/** Closed, bounded explanation set for relevance (report 18 §8). */
+export const RELEVANCE_REASONS = [
+  'title_exact', 'title_prefix', 'title_contains',
+  'snippet_match', 'description_match', 'unspecified',
+] as const satisfies readonly RelevanceReason[];
+
+/** Upper bound on a canonical title; longer upstream titles get no hint. */
+export const MAX_CANONICAL_TITLE_CHARS = 512;
+
+function normaliseForMatch(value: string): string {
+  return value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim().toLocaleLowerCase('en');
+}
+
+/**
+ * Deterministically explain a match using only fields already present in the
+ * upstream item. This is a *label*, not a scoring change: results keep the
+ * order and shape returned upstream.
+ */
+export function relevanceReasonFor(
+  query: string,
+  candidate: { title?: unknown; snippet?: unknown; description?: unknown; extract?: unknown },
+): RelevanceReason {
+  const q = normaliseForMatch(query);
+  if (q.length === 0) return 'unspecified';
+  const title = typeof candidate.title === 'string' ? normaliseForMatch(candidate.title) : '';
+  if (title === q) return 'title_exact';
+  if (title.startsWith(q)) return 'title_prefix';
+  if (title.includes(q)) return 'title_contains';
+  const snippet = typeof candidate.snippet === 'string' ? normaliseForMatch(candidate.snippet) : '';
+  if (snippet.includes(q)) return 'snippet_match';
+  const description = typeof candidate.description === 'string' ? normaliseForMatch(candidate.description) : '';
+  if (description.includes(q)) return 'description_match';
+  const extract = typeof candidate.extract === 'string' ? normaliseForMatch(candidate.extract) : '';
+  if (extract.includes(q)) return 'description_match';
+  return 'unspecified';
+}
+
+/**
+ * Resolve an upstream title into a canonical title and article URL derived
+ * *only* from the server's allowlisted target. Never trusts an upstream `url`,
+ * never accepts caller-supplied hosts, and omits the hint for malformed or
+ * over-long titles. The resolved `source` records the allowlisted lang/project.
+ */
+export function canonicalTitleFor(
+  target: ResolveResult,
+  rawTitle: unknown,
+): { canonical_title: string; canonical_url: string; canonical_source: string } | null {
+  if (typeof rawTitle !== 'string') return null;
+  const title = rawTitle.replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+  if (title.length === 0 || title.length > MAX_CANONICAL_TITLE_CHARS) return null;
+  if (/[\u0000-\u001f\u007f]/.test(title)) return null;
+  return {
+    canonical_title: title,
+    canonical_url: target.articleUrl(title),
+    canonical_source: target.source,
   };
 }
 

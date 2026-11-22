@@ -1,0 +1,20 @@
+{
+  "case_id": "WP13-CONTENT-200",
+  "tool": "get_summary",
+  "request": {
+    "path": "/api/rest_v1/page/summary/Wp13FixturePage",
+    "headers": {}
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "etag": "\"wp13-etag-1\"",
+      "cache-control": "public, max-age=60"
+    },
+    "body": {
+      "title": "Wp13FixturePage",
+      "description": "A bounded fixture summary",
+      "extract": "Fixture-only body; no real wiki content or tokens."
+    }
+  }
+}

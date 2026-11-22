@@ -9,6 +9,7 @@ import {
   derivePolitenessFromObservations,
   type PolitenessSnapshot,
 } from './politeness.js';
+import { emptyDemandSnapshot, type DemandSnapshot } from './demand-telemetry.js';
 
 /**
  * Durable, machine-readable evidence for every nightly live-gate run
@@ -35,6 +36,11 @@ export type NightlyReport = LiveGateReport & {
   m4_429_count: number;
   /** WP16 additive politeness telemetry (counts/ratios only). */
   politeness: PolitenessSnapshot;
+  /**
+   * WP6 additive demand signals (counts/dates only). Optional so a report
+   * produced before this field existed still satisfies `schema_version: 1`.
+   */
+  demand_signals?: DemandSnapshot;
   failures: ReportFailure[];
 };
 
@@ -50,6 +56,12 @@ export type BuildNightlyReportInput = {
    * report in a different process from the server) fully backward compatible.
    */
   politeness?: PolitenessSnapshot;
+  /**
+   * Optional in-process demand snapshot. The nightly runner is a separate
+   * process from the MCP server, so when omitted the block is an explicit
+   * "not instrumented here" placeholder rather than a claim of zero demand.
+   */
+  demandSignals?: DemandSnapshot;
 };
 
 /** Pure builder: turn gate observations + metrics into a serialisable report. */
@@ -91,6 +103,7 @@ export function buildNightlyReport(input: BuildNightlyReportInput): NightlyRepor
     m6: metrics.m6,
     m4_429_count: metrics.m4.count429,
     politeness: input.politeness ?? derivePolitenessFromObservations(observations),
+    demand_signals: input.demandSignals ?? emptyDemandSnapshot(),
     overallPass: metrics.overallPass,
     failures: (input.failures ?? []).map((failure) => ({ id: failure.id, detail: failure.detail })),
   };

@@ -1,12 +1,14 @@
 import type { ZodType } from 'zod';
 import type { Config } from '../../config.js';
-import { resolveTarget, ResolverError } from '../../resolver.js';
+import { resolveTarget, ResolverError, canonicalTitleFor, relevanceReasonFor } from '../../resolver.js';
 import type { ResolveResult } from '../../types.js';
 import { WikimediaClient, asRecord } from '../../upstream/client.js';
 import { UpstreamError } from '../../upstream/retry.js';
 import { toolError, mapHttpStatus } from '../../protocol/errors.js';
 import { errorToolResult, okToolResult } from '../../protocol/result.js';
 import { enforceResultLimit } from '../../protocol/limits.js';
+import { withCacheTier } from '../../protocol/caching.js';
+import { DemandTelemetry } from '../../observability/demand-telemetry.js';
 import {
   assembleAttribution, DEFAULT_LICENSE, escapeContent, licenceHint,
   licenseFromExtMetadata, stripHtml, withListProvenance, withProvenance,
@@ -102,8 +104,18 @@ function requireOk(status: number, target: ResolveResult, title: string, backend
 export function createHandlers(
   client: WikimediaClient,
   config: Config,
-  options: { sleep?: (ms: number) => Promise<void>; now?: () => number; clock?: PacingClock } = {},
+  options: {
+    sleep?: (ms: number) => Promise<void>;
+    now?: () => number;
+    clock?: PacingClock;
+    /** WP6: injectable count-only recorder; defaults to a fresh in-process instance. */
+    demandTelemetry?: DemandTelemetry;
+  } = {},
 ) {
+  // Counts only: tool name, success/failure and (when a surrogate is supplied
+  // by a caller) single-call resolution. No argument, title or query is read.
+  const demand = options.demandTelemetry ?? new DemandTelemetry();
+
   async function run<TInput, TOutput>(
     name: string,
     schema: ZodType<TInput>,
@@ -111,20 +123,21 @@ export function createHandlers(
     fn: (input: TInput, target: ResolveResult, signal?: AbortSignal) => Promise<TOutput>,
     signal?: AbortSignal,
   ): Promise<ToolResponse> {
-    const forbidden = FORBIDDEN_HOST_KEYS.find((key) => key in raw);
-    if (forbidden !== undefined) {
-      return errorToolResult('host_not_allowed',
-        `Parameter '${forbidden}' is not accepted. Hosts are fixed by the server allowlist; no outbound request was made.`,
-        { retryable: false, details: { tool: name, rejected_key: forbidden } });
-    }
-    const parsed = schema.safeParse(raw);
-    if (!parsed.success) {
-      const detail = parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
-      return errorToolResult('validation_error', `Invalid arguments for ${name}: ${detail}`, {
-        retryable: false, details: { tool: name },
-      });
-    }
+    let ok = false;
     try {
+      const forbidden = FORBIDDEN_HOST_KEYS.find((key) => key in raw);
+      if (forbidden !== undefined) {
+        return errorToolResult('host_not_allowed',
+          `Parameter '${forbidden}' is not accepted. Hosts are fixed by the server allowlist; no outbound request was made.`,
+          { retryable: false, details: { tool: name, rejected_key: forbidden } });
+      }
+      const parsed = schema.safeParse(raw);
+      if (!parsed.success) {
+        const detail = parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ');
+        return errorToolResult('validation_error', `Invalid arguments for ${name}: ${detail}`, {
+          retryable: false, details: { tool: name },
+        });
+      }
       const input = parsed.data as { lang?: string; project?: string };
       const targetParams: { lang?: string; project?: string } = {};
       if (input.lang !== undefined) targetParams.lang = input.lang;
@@ -132,9 +145,13 @@ export function createHandlers(
       const target = resolveTarget(targetParams);
       const output = await fn(parsed.data, target, signal);
       const limited = enforceResultLimit(output as unknown as Record<string, unknown>, config.maxResultBytes);
-      return okToolResult(limited);
+      const result = okToolResult(limited);
+      ok = result.isError !== true;
+      return result;
     } catch (error) {
       return handleException(name, error);
+    } finally {
+      demand.recordToolInvocation({ tool: name, ok });
     }
   }
 
@@ -149,6 +166,8 @@ export function createHandlers(
           hint: t.hint,
           details: { ...t.details, tool: name },
           action: t.action,
+          ...(t.suggested_tool === undefined ? {} : { suggestedTool: t.suggested_tool }),
+          ...(t.next_action === undefined ? {} : { nextAction: t.next_action }),
         });
       }
     }
@@ -237,6 +256,11 @@ export function createHandlers(
         const results = Array.isArray(search) ? search.slice(0, input.limit).map((item) => {
           const entry = asRecord(item) ?? {};
           const snippet = stripHtml(typeof entry['snippet'] === 'string' ? entry['snippet'] : '');
+          const canonical = canonicalTitleFor(target, entry['title']);
+          // WP12 — additive, bounded explanation; no result ordering changes.
+          const relevance_reason = relevanceReasonFor(input.q, {
+            title: entry['title'], snippet, description: entry['description'],
+          });
           return {
             pageid: entry['pageid'] ?? null,
             title: entry['title'] ?? '',
@@ -245,6 +269,8 @@ export function createHandlers(
             wordcount: entry['wordcount'] ?? 0,
             url: target.articleUrl(String(entry['title'] ?? '')),
             qid: null,
+            relevance_reason,
+            ...(canonical === null ? {} : canonical),
           };
         }) : [];
         const totalHits = typeof total?.['totalhits'] === 'number' ? total['totalhits'] : results.length;
@@ -260,7 +286,9 @@ export function createHandlers(
     async get_summary(raw: Record<string, unknown>, signal?: AbortSignal): Promise<ToolResponse> {
       return run<GetSummaryInput, ToolPayload>('get_summary', getSummarySchema, raw, async (input, target, childSignal) => {
         const url = `${target.restBase}/page/summary/${encodedTitle(input.title)}`;
-        const response = await client.getJson(url, fetchOptions(childSignal, 'wikimedia-rest-v1'));
+        // WP13 — the content tier only caches responses carrying a bounded
+        // Cache-Control max-age and revalidates with ETag on subsequent hits.
+        const response = await client.cachedContent(url, fetchOptions(childSignal, 'wikimedia-rest-v1'));
         if (response.status === 404) {
           pageNotFound(target, input.title, 'wikimedia-rest-v1');
         }
@@ -269,12 +297,14 @@ export function createHandlers(
           const candidates = Array.isArray(data['pages'])
             ? data['pages'].map((page) => ({ title: asRecord(page)?.['title'] ?? '' }))
             : [];
-          return withListProvenance({
+          const disambiguation = withListProvenance({
             title: input.title, candidates, disambiguation: true,
             hint: 'Call get_summary on a candidate title, or search to disambiguate.',
           }, target, input.title);
+          return response.cache_tier === undefined ? disambiguation : withCacheTier(disambiguation, response.cache_tier);
         }
-        return summaryPayload(target, input.title, response.json);
+        const summary = await summaryPayload(target, input.title, response.json);
+        return response.cache_tier === undefined ? summary : withCacheTier(summary, response.cache_tier);
       }, signal);
     },
 
@@ -378,25 +408,32 @@ export function createHandlers(
     async get_related_pages(raw: Record<string, unknown>, signal?: AbortSignal): Promise<ToolResponse> {
       return run<GetRelatedPagesInput, ToolPayload>('get_related_pages', getRelatedPagesSchema, raw, async (input, target, childSignal) => {
         const url = `${target.restBase}/page/related/${encodedTitle(input.title)}`;
-        const response = await client.getJson(url, fetchOptions(childSignal, 'wikimedia-rest-v1'));
+        const response = await client.cachedContent(url, fetchOptions(childSignal, 'wikimedia-rest-v1'));
         requireOk(response.status, target, input.title, 'wikimedia-rest-v1');
         const root = asRecord(response.json);
         const pages = Array.isArray(root?.['pages']) ? root['pages'] : [];
         const related = pages.slice(0, input.limit).map((item) => {
           const page = asRecord(item) ?? {};
           const thumb = asRecord(page['thumbnail']);
+          const canonical = canonicalTitleFor(target, page['title']);
+          const relevance_reason = relevanceReasonFor(input.title, {
+            title: page['title'], description: page['description'], extract: page['extract'],
+          });
           return {
             title: page['title'] ?? '', description: page['description'] ?? '',
             extract: page['extract'] ?? '', url: page['url'] ?? target.articleUrl(String(page['title'] ?? '')),
             thumbnail: thumb === null ? null : { source: thumb['source'], width: thumb['width'], height: thumb['height'] },
+            relevance_reason,
+            ...(canonical === null ? {} : canonical),
           };
         });
-        return withListProvenance({
+        const relatedPayload = withListProvenance({
           title: input.title, related,
           // `pages` is a compatibility alias used by the test corpus.
           pages: related,
           truncated: pages.length > input.limit,
         }, target, input.title);
+        return response.cache_tier === undefined ? relatedPayload : withCacheTier(relatedPayload, response.cache_tier);
       }, signal);
     },
 
