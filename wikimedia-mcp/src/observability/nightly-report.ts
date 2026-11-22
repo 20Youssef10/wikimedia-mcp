@@ -10,6 +10,7 @@ import {
   type PolitenessSnapshot,
 } from './politeness.js';
 import { emptyDemandSnapshot, type DemandSnapshot } from './demand-telemetry.js';
+import { readTelemetrySnapshot, resolveTelemetrySnapshotPath } from './telemetry-transport.js';
 
 /**
  * Durable, machine-readable evidence for every nightly live-gate run
@@ -18,6 +19,9 @@ import { emptyDemandSnapshot, type DemandSnapshot } from './demand-telemetry.js'
  * nightly test so a failed or interrupted run leaves evidence too.
  */
 export const DEFAULT_NIGHTLY_REPORT_PATH = 'reports/nightly-live.json';
+
+/** Where the real `politeness` counters came from. Additive (WP19). */
+export type TelemetrySource = 'child' | 'observation-derived';
 
 export type ToolSuccess = { ok: number; total: number };
 export type ReportFailure = { id: string; detail: string };
@@ -37,6 +41,14 @@ export type NightlyReport = LiveGateReport & {
   /** WP16 additive politeness telemetry (counts/ratios only). */
   politeness: PolitenessSnapshot;
   /**
+   * WP19 additive provenance for the `politeness` block: `child` means the
+   * counters were read from a real PolitenessTelemetry snapshot exported by
+   * the MCP server child (or injected explicitly); `observation-derived`
+   * means no valid child snapshot was available and the pre-existing fallback
+   * was used. No pre-existing field changes meaning or disappears.
+   */
+  telemetry_source: TelemetrySource;
+  /**
    * WP6 additive demand signals (counts/dates only). Optional so a report
    * produced before this field existed still satisfies `schema_version: 1`.
    */
@@ -51,11 +63,16 @@ export type BuildNightlyReportInput = {
   failures?: readonly ReportFailure[];
   now?: () => number;
   /**
-   * Optional in-process client telemetry. When omitted the block is derived
-   * from the gate observations, keeping the nightly runner (which builds the
-   * report in a different process from the server) fully backward compatible.
+   * Optional in-process client telemetry. When supplied it wins and is marked
+   * `telemetry_source: 'child'` (real counters, not observation-derived).
    */
   politeness?: PolitenessSnapshot;
+  /**
+   * WP19 — path to the child's telemetry snapshot file. When omitted,
+   * `WMCP_TELEMETRY_SNAPSHOT_PATH` is consulted. A valid snapshot overrides
+   * the observation-derived block; a missing/invalid one falls back to it.
+   */
+  telemetrySnapshotPath?: string;
   /**
    * Optional in-process demand snapshot. The nightly runner is a separate
    * process from the MCP server, so when omitted the block is an explicit
@@ -64,7 +81,7 @@ export type BuildNightlyReportInput = {
   demandSignals?: DemandSnapshot;
 };
 
-/** Pure builder: turn gate observations + metrics into a serialisable report. */
+/** Deterministic builder: the only I/O is the best-effort child snapshot read. */
 export function buildNightlyReport(input: BuildNightlyReportInput): NightlyReport {
   const { observations, metrics, peakConcurrency } = input;
   const measured = observations.filter((item) => item.warmup !== true);
@@ -85,6 +102,26 @@ export function buildNightlyReport(input: BuildNightlyReportInput): NightlyRepor
   for (const [tool, durations] of [...durationsByTool.entries()].sort(([a], [b]) => a.localeCompare(b))) {
     perToolP95[tool] = nearestRankP95(durations);
   }
+
+  // Child telemetry wins over the observation-derived fallback. Precedence:
+  // explicitly injected snapshot -> env/path snapshot -> observations.
+  let politeness: PolitenessSnapshot;
+  let telemetrySource: TelemetrySource;
+  if (input.politeness !== undefined) {
+    politeness = input.politeness;
+    telemetrySource = 'child';
+  } else {
+    const snapshotPath = input.telemetrySnapshotPath ?? resolveTelemetrySnapshotPath();
+    const loaded = snapshotPath === undefined ? undefined : readTelemetrySnapshot(snapshotPath);
+    if (loaded?.snapshot !== undefined) {
+      politeness = loaded.snapshot;
+      telemetrySource = 'child';
+    } else {
+      politeness = derivePolitenessFromObservations(observations);
+      telemetrySource = 'observation-derived';
+    }
+  }
+
   const now = input.now ?? (() => Date.now());
   return {
     schema_version: 1,
@@ -102,7 +139,8 @@ export function buildNightlyReport(input: BuildNightlyReportInput): NightlyRepor
     m5: metrics.m5,
     m6: metrics.m6,
     m4_429_count: metrics.m4.count429,
-    politeness: input.politeness ?? derivePolitenessFromObservations(observations),
+    politeness,
+    telemetry_source: telemetrySource,
     demand_signals: input.demandSignals ?? emptyDemandSnapshot(),
     overallPass: metrics.overallPass,
     failures: (input.failures ?? []).map((failure) => ({ id: failure.id, detail: failure.detail })),

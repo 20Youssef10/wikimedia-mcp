@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { createServer } from 'node:net';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -10,6 +10,9 @@ import {
 import {
   buildNightlyReport, writeNightlyReport, type ReportFailure,
 } from '../../src/observability/nightly-report.js';
+import {
+  DEFAULT_TELEMETRY_SNAPSHOT_NAME, TELEMETRY_PATH_ENV, readTelemetrySnapshot,
+} from '../../src/observability/telemetry-transport.js';
 import { phase1LiveCases, type CorpusCase } from '../corpus-loader.js';
 
 /**
@@ -24,6 +27,8 @@ const describeLive = enabled ? describe : describe.skip;
 
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../..');
 const ENTRY = path.join(ROOT, 'dist/index.js');
+/** WP19 — child→parent telemetry file (under the gitignored `reports/` tree). */
+const TELEMETRY_PATH = path.join(ROOT, 'reports', DEFAULT_TELEMETRY_SNAPSHOT_NAME);
 
 async function freePort(): Promise<number> {
   const socket = createServer();
@@ -92,6 +97,8 @@ describeLive('nightly live gate — Phase 1 Group A (M1–M4)', () => {
   beforeAll(async () => {
     try {
       if (!existsSync(ENTRY)) throw new Error('Run `npm run build` before the nightly live gate');
+      // Never merge a leftover snapshot from a previous nightly run.
+      rmSync(TELEMETRY_PATH, { force: true });
       const port = await freePort();
       url = `http://127.0.0.1:${port}/mcp`;
       child = spawn(process.execPath, [ENTRY], {
@@ -102,6 +109,8 @@ describeLive('nightly live gate — Phase 1 Group A (M1–M4)', () => {
           MCP_HTTP_PORT: String(port),
           USER_AGENT: 'WikiMCP-Nightly/1.0 (https://example.org/nightly; ops@example.org)',
           LOG_LEVEL: 'error',
+          // WP19 — enable the child's periodic + shutdown telemetry flush.
+          [TELEMETRY_PATH_ENV]: TELEMETRY_PATH,
         },
         stdio: ['ignore', 'ignore', 'pipe'],
       });
@@ -119,7 +128,7 @@ describeLive('nightly live gate — Phase 1 Group A (M1–M4)', () => {
     }
   }, 30000);
 
-  afterAll(() => {
+  afterAll(async () => {
     // Even a startup failure or an interrupted run must leave durable evidence.
     if (!reportWritten) {
       const report = buildNightlyReport({
@@ -127,12 +136,26 @@ describeLive('nightly live gate — Phase 1 Group A (M1–M4)', () => {
         metrics: computeMetrics([]),
         peakConcurrency: 0,
         failures: [{ id: 'nightly-startup', detail: startupFailure ?? 'the nightly run did not reach the report writer' }],
+        telemetrySnapshotPath: TELEMETRY_PATH,
       });
       const writtenPath = writeNightlyReport(report);
       console.log(`[nightly] JSON report (incomplete run): ${writtenPath}`);
       reportWritten = true;
     }
-    child?.kill('SIGTERM');
+    // Let the child finish its final telemetry flush before we inspect it.
+    const spawned = child;
+    if (spawned !== undefined && spawned.exitCode === null && spawned.signalCode === null) {
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(() => resolve(), 5000);
+        spawned.once('exit', () => { clearTimeout(timer); resolve(); });
+        spawned.kill('SIGTERM');
+      });
+    }
+    const finalTelemetry = readTelemetrySnapshot(TELEMETRY_PATH);
+    const counters = finalTelemetry.snapshot;
+    console.log(`[nightly] child telemetry snapshot: ${finalTelemetry.outcome}`
+      + (counters === undefined ? '' : ` upstream=${counters.upstream_calls_total}`
+        + ` cache_hits=${counters.cache_hits} coalesced_calls=${counters.coalesced_calls}`));
   });
 
   it('runs 330 live calls with 2 req/s pacing and concurrency <= 3', async () => {
@@ -146,6 +169,8 @@ describeLive('nightly live gate — Phase 1 Group A (M1–M4)', () => {
     const persist = (metrics = report): ReturnType<typeof buildNightlyReport> => {
       const persisted = buildNightlyReport({
         observations, metrics, peakConcurrency: runner.peakConcurrency, failures,
+        // WP19 — merge the child's real counters (or fall back to observations).
+        telemetrySnapshotPath: TELEMETRY_PATH,
       });
       const writtenPath = writeNightlyReport(persisted);
       reportWritten = true;

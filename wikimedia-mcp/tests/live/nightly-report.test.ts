@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
@@ -7,14 +7,17 @@ import {
 import {
   buildNightlyReport, writeNightlyReport, type NightlyReport,
 } from '../../src/observability/nightly-report.js';
-import { PolitenessTelemetry, emptyPolitenessSnapshot } from '../../src/observability/politeness.js';
+import {
+  PolitenessTelemetry, emptyPolitenessSnapshot, type PolitenessSnapshot,
+} from '../../src/observability/politeness.js';
+import { startTelemetrySnapshotWriter } from '../../src/observability/telemetry-transport.js';
 import { WikimediaClient } from '../../src/upstream/client.js';
 import { testConfig } from '../helpers/test-env.js';
 
 const REQUIRED_KEYS = [
   'schema_version', 'timestamp', 'total', 'warmup', 'measured', 'peak_concurrency',
   'per_tool_success', 'per_tool_p95_ms',
-  'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm4_429_count', 'politeness', 'overallPass', 'failures',
+  'm1', 'm2', 'm3', 'm4', 'm5', 'm6', 'm4_429_count', 'politeness', 'telemetry_source', 'overallPass', 'failures',
 ] as const;
 
 function observation(tool: string, durationMs: number, overrides: Partial<Observation> = {}): Observation {
@@ -200,5 +203,140 @@ describe('WP16 — politeness telemetry in the nightly report (fixture-backed)',
     } finally {
       client.close();
     }
+  });
+});
+
+/** Write a child snapshot through the exact transport the live child uses. */
+function injectChildSnapshot(dir: string, snapshot: PolitenessSnapshot): string {
+  const filePath = path.join(dir, 'child-telemetry.json');
+  const writer = startTelemetrySnapshotWriter(() => snapshot, { filePath, intervalMs: 60000 });
+  try {
+    expect(writer.writeNow()).toBe(true);
+  } finally {
+    writer.stop();
+  }
+  return filePath;
+}
+
+describe('WP19 — child telemetry merge into the nightly report (fixture-backed)', () => {
+  function childCounters(): PolitenessSnapshot {
+    const telemetry = new PolitenessTelemetry();
+    telemetry.recordUpstreamCall('wikimedia-rest-v1', 200, 1200);
+    telemetry.recordUpstreamCall('wikimedia-rest-v1');
+    telemetry.recordCacheHit();
+    telemetry.recordCacheMiss();
+    telemetry.recordConcurrencyReduction();
+    telemetry.recordCoalescing(3);
+    return telemetry.snapshot();
+  }
+
+  it('merges a valid child snapshot and marks telemetry_source=child', () => {
+    const dir = mkdtempSync(path.join(process.cwd(), 'reports', 'nightly-merge-'));
+    try {
+      const snapshot = childCounters();
+      const filePath = injectChildSnapshot(dir, snapshot);
+      const observations = healthy();
+      const report = buildNightlyReport({
+        observations,
+        metrics: computeMetrics(observations),
+        peakConcurrency: 3,
+        telemetrySnapshotPath: filePath,
+        now: () => Date.parse('2026-11-22T12:00:00Z'),
+      });
+      expectRequiredKeys(report as unknown as Record<string, unknown>);
+      expect(report.telemetry_source).toBe('child');
+      expect(report.politeness).toEqual(snapshot);
+      // Real child counters replace the observation-derived label space.
+      expect(report.politeness.upstream_calls_by_tool['wikimedia-rest-v1']).toBe(2);
+      expect(report.politeness.upstream_calls_by_tool['get_summary']).toBeUndefined();
+      expect(report.politeness.upstream_calls_total).toBe(2);
+      expect(report.politeness.cache_hits).toBe(1);
+      expect(report.politeness.cache_misses).toBe(1);
+      expect(report.politeness.retry_after.observed).toBe(1);
+      expect(report.politeness.retry_after.max_observed_ms).toBe(1200);
+      expect(report.politeness.concurrency_reductions).toBe(1);
+      expect(report.politeness.coalesced_calls).toBe(1);
+      expect(report.politeness.coalesced_waiters).toBe(3);
+      // Every pre-existing field is unchanged by the merge.
+      expect(report.schema_version).toBe(1);
+      expect([report.total, report.warmup, report.measured]).toEqual([300, 0, 300]);
+      expect(report.per_tool_success['get_summary']).toEqual({ ok: 150, total: 150 });
+      expect(report.m4_429_count).toBe(0);
+      expect(report.overallPass).toBe(true);
+      expect(report.failures).toEqual([]);
+      expect(JSON.stringify(report)).not.toContain('Bearer');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('falls back to observation-derived counters for a broken snapshot', () => {
+    const dir = mkdtempSync(path.join(process.cwd(), 'reports', 'nightly-broken-'));
+    try {
+      const filePath = path.join(dir, 'child-telemetry.json');
+      writeFileSync(filePath, '{ "upstream_calls_total": 3, truncated');
+      const observations = healthy();
+      const report = buildNightlyReport({
+        observations,
+        metrics: computeMetrics(observations),
+        peakConcurrency: 3,
+        telemetrySnapshotPath: filePath,
+      });
+      expect(report.telemetry_source).toBe('observation-derived');
+      expect(report.politeness.upstream_calls_total).toBe(300);
+      expect(report.politeness.upstream_calls_by_tool['get_summary']).toBe(150);
+      expect(report.politeness.cache_hits).toBe(0);
+      expect(report.politeness.coalesced_calls).toBe(0);
+      expect(report.overallPass).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('falls back for a missing snapshot and for a tampered one with a secret label', () => {
+    const dir = mkdtempSync(path.join(process.cwd(), 'reports', 'nightly-missing-'));
+    try {
+      const observations = healthy();
+      const missing = buildNightlyReport({
+        observations,
+        metrics: computeMetrics(observations),
+        peakConcurrency: 3,
+        telemetrySnapshotPath: path.join(dir, 'never-written.json'),
+      });
+      expect(missing.telemetry_source).toBe('observation-derived');
+      expect(missing.politeness.upstream_calls_total).toBe(300);
+
+      const tampered = path.join(dir, 'tampered.json');
+      writeFileSync(tampered, JSON.stringify({
+        ...emptyPolitenessSnapshot(),
+        upstream_calls_total: 999,
+        upstream_calls_by_tool: { 'get_summary/Earth?token=SUPERSECRET': 999 },
+        leaked_token: 'SUPERSECRET',
+      }));
+      const report = buildNightlyReport({
+        observations,
+        metrics: computeMetrics(observations),
+        peakConcurrency: 3,
+        telemetrySnapshotPath: tampered,
+      });
+      expect(report.telemetry_source).toBe('observation-derived');
+      expect(report.politeness.upstream_calls_total).toBe(300);
+      expect(JSON.stringify(report)).not.toContain('SUPERSECRET');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('marks an explicitly injected in-process snapshot as child-sourced', () => {
+    const snapshot = childCounters();
+    const observations = healthy();
+    const report = buildNightlyReport({
+      observations,
+      metrics: computeMetrics(observations),
+      peakConcurrency: 3,
+      politeness: snapshot,
+    });
+    expect(report.telemetry_source).toBe('child');
+    expect(report.politeness).toEqual(snapshot);
   });
 });

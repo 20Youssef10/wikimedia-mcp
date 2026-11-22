@@ -6,7 +6,8 @@ import { SERVER_INSTRUCTIONS } from '../instructions.js';
 import { DISCOVERY } from '../discover.js';
 import { cacheHints } from '../../protocol/caching.js';
 import { createHandlers } from './handlers.js';
-import { IDEMPOTENT_TOOLS, PHASE1_TOOL_NAMES, TOOL_DESCRIPTIONS, TOOL_SCHEMAS } from './schemas.js';
+import { toolAnnotations } from './annotations.js';
+import { PHASE1_TOOL_NAMES, TOOL_DESCRIPTIONS, TOOL_SCHEMAS } from './schemas.js';
 import { registerMinimalResources } from '../resources/index.js';
 import { registerMinimalPrompts } from '../prompts/index.js';
 import { GROUP_B_DESCRIPTIONS, GROUP_B_TOOL_NAMES, buildGroupBSchemas } from '../../wikidata/schemas.js';
@@ -16,7 +17,7 @@ import { GROUP_G_DESCRIPTIONS, GROUP_G_SCHEMAS, GROUP_G_TOOL_NAMES } from '../..
 import { createGroupGHandlers } from '../../groupg/handlers.js';
 import { GROUP_D_DESCRIPTIONS, GROUP_D_SCHEMAS, GROUP_D_TOOL_NAMES } from '../../groupd/schemas.js';
 import { createGroupDHandlers } from '../../groupd/handlers.js';
-import { WRITE_ANNOTATIONS, WRITE_DESCRIPTIONS, WRITE_TOOL_NAMES } from '../../write/constants.js';
+import { WRITE_DESCRIPTIONS, WRITE_TOOL_NAMES } from '../../write/constants.js';
 import { WRITE_STANDARD_SCHEMAS } from '../../write/schemas.js';
 import { createWriteHandlers, type WriteInvocation } from '../../write/handlers.js';
 import { defaultWriteRuntime } from '../../write/default-runtime.js';
@@ -155,18 +156,7 @@ export function buildMcpServer(config: Config, client: WikimediaClient): McpServ
     const description = descriptions[name];
     if (schema === undefined || handler === undefined || description === undefined) continue;
     const isWrite = (WRITE_TOOL_NAMES as readonly string[]).includes(name);
-    const annotations = isWrite ? { ...WRITE_ANNOTATIONS } : {
-      readOnlyHint: true,
-      destructiveHint: false,
-      openWorldHint: true,
-      // Group D is deliberately non-idempotent: the implicit "now" makes
-      // two identical calls return different windows (contract §3.5).
-      idempotentHint: !GROUP_D_TOOL_NAMES.includes(name as typeof GROUP_D_TOOL_NAMES[number])
-        && (GROUP_B_TOOL_NAMES.includes(name as typeof GROUP_B_TOOL_NAMES[number])
-          || GROUP_CF_TOOL_NAMES.includes(name)
-          || GROUP_G_TOOL_NAMES.includes(name as typeof GROUP_G_TOOL_NAMES[number])
-          || IDEMPOTENT_TOOLS.has(name)),
-    };
+    const annotations = toolAnnotations(name);
     server.registerTool(
       name,
       { description, inputSchema: schema, annotations },

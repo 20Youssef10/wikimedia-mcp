@@ -1,5 +1,6 @@
 import { loadConfig } from '../config.js';
 import { TOOL_NAMES } from '../server/tools/registry.js';
+import { toolAnnotations, type ToolAnnotations } from '../server/tools/annotations.js';
 import {
   TOOL_DESCRIPTIONS, TOOL_SCHEMAS,
 } from '../server/tools/schemas.js';
@@ -28,10 +29,15 @@ import { WRITE_STANDARD_SCHEMAS } from '../write/schemas.js';
  *
  * Documentation is derived from the *advertised* JSON Schema of every shipped
  * Zod input schema (the same object the MCP server serves in `tools/list`),
- * plus the exact description maps the registry registers. There is no
- * hand-maintained field list, so a schema change cannot silently leave the
- * docs stale: `tests/unit/tool-reference.test.ts` regenerates in memory and
- * fails CI if `TOOLS.md` no longer matches byte-for-byte.
+ * plus the exact description maps the registry registers. Input fields are
+ * derived, so a schema change cannot silently leave the docs stale.
+ *
+ * WP12–WP15 added *additive output fields* that have no Zod input schema, so
+ * they cannot be derived from `tools/list`; they are documented from the
+ * explicit OUTPUT_FIELDS registry below (a closed, code-verified set) plus the
+ * shared annotation function used by the live server. `tests/unit/tool-
+ * reference.test.ts` regenerates in memory and fails CI if `TOOLS.md` no
+ * longer matches byte-for-byte.
  *
  * Deterministic and offline: config is built from a fixed, secret-free env,
  * never from `process.env`, and no clock or network value is emitted.
@@ -88,7 +94,111 @@ export interface ToolDocEntry {
   description: string;
   isWrite: boolean;
   fields: readonly ToolFieldDoc[];
+  outputFields: readonly OutputFieldDoc[];
+  annotations: ToolAnnotations;
 }
+
+/** An additive output field documented for a tool (WP12–WP15). */
+export interface OutputFieldDoc {
+  /** Field name as it appears in the JSON payload (dot path for nested fields). */
+  name: string;
+  /** Human-readable JSON type, including closed enums. */
+  type: string;
+  /** True when the field is optional / additively omitted when not applicable. */
+  optional: boolean;
+  /** Where in the result envelope the field appears. */
+  location: string;
+  description: string;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Additive output fields (WP12–WP15)                                          */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Source of truth for documented additive output fields. Every entry here is
+ * a field the code actually emits; no field is inferred or invented. The
+ * closed sets live in `src/types.ts` (`RelevanceReason`, `CacheTier`) and the
+ * emitters live in `src/resolver.ts`, `src/protocol/{caching,errors,result}.ts`.
+ * Normal input fields remain derived from the advertised JSON Schema above.
+ */
+const RELEVANCE_REASON_VALUES = 'title_exact | title_prefix | title_contains | snippet_match | description_match | unspecified';
+
+const REASON_FIELD: Omit<OutputFieldDoc, 'location'> = {
+  name: 'relevance_reason',
+  type: `enum: ${RELEVANCE_REASON_VALUES}`,
+  optional: true,
+  description: 'WP12 — bounded, explainable reason the item matched; never reorders results.',
+};
+const CANONICAL_TITLE_FIELD: Omit<OutputFieldDoc, 'location'> = {
+  name: 'canonical_title',
+  type: 'string',
+  optional: true,
+  description: 'WP12 — title derived only from the allowlisted target; omitted for malformed/over-long titles.',
+};
+const CANONICAL_URL_FIELD: Omit<OutputFieldDoc, 'location'> = {
+  name: 'canonical_url',
+  type: 'string',
+  optional: true,
+  description: 'WP12 — article URL derived only from the allowlisted target.',
+};
+const CANONICAL_SOURCE_FIELD: Omit<OutputFieldDoc, 'location'> = {
+  name: 'canonical_source',
+  type: 'string',
+  optional: true,
+  description: 'WP12 — allowlisted lang/project source identifier (e.g. `wikipedia:en`).',
+};
+const CACHE_TIER_FIELD: OutputFieldDoc = {
+  name: 'cache_tier',
+  type: 'enum: metadata | content',
+  optional: true,
+  location: 'top-level success payload',
+  description: 'WP13 — tier that served the result: `metadata` (strict TTL) or `content` (bounded ETag/Cache-Control revalidation); present only on cacheable responses.',
+};
+
+const inItems = (location: string): OutputFieldDoc[] => [
+  REASON_FIELD, CANONICAL_TITLE_FIELD, CANONICAL_URL_FIELD, CANONICAL_SOURCE_FIELD,
+].map((field) => ({ ...field, location }));
+
+/**
+ * Per-tool additive success fields, keyed by registered tool name. Only the
+ * three tools that emit WP12/WP13 additive fields are listed; all other tools
+ * still receive the common error/provenance fields below.
+ */
+export const OUTPUT_FIELDS: Readonly<Record<string, readonly OutputFieldDoc[]>> = Object.freeze({
+  search: inItems('`results[]` items'),
+  get_related_pages: [...inItems('`related[]` / `pages[]` items'), CACHE_TIER_FIELD],
+  get_summary: [CACHE_TIER_FIELD],
+});
+
+/** WP14 — error-envelope fields emitted for every tool's error result. */
+export const ERROR_OUTPUT_FIELDS: readonly OutputFieldDoc[] = Object.freeze([
+  {
+    name: 'error.suggested_tool',
+    type: 'string',
+    optional: true,
+    location: '`error` object (error results only)',
+    description: 'WP14 — registered tool that is the unambiguous recovery step; absent when no such tool exists.',
+  },
+  {
+    name: 'error.next_action',
+    type: 'string',
+    optional: true,
+    location: '`error` object (error results only)',
+    description: 'WP14 — deterministic next step for the error; absent when no unique recovery exists.',
+  },
+]);
+
+/** WP15 — compact provenance block on read-only success payloads. */
+export const PROVENANCE_OUTPUT_FIELDS: readonly OutputFieldDoc[] = Object.freeze([
+  {
+    name: 'provenance_block',
+    type: 'object',
+    optional: true,
+    location: 'top-level success payload (read-only tools)',
+    description: 'WP15 — compact block with `source`, `license`, `attribution`, `attribution_text`, `disclaimer` and optional `hint`; derived from the unchanged flat provenance fields.',
+  },
+]);
 
 const asSchemaMap = (value: object): Record<string, StandardSchemaLike> =>
   value as unknown as Record<string, StandardSchemaLike>;
@@ -194,11 +304,19 @@ export function collectToolDocs(): ToolDocEntry[] {
       constraints: renderConstraints(property),
       description: mdCell(property.description ?? '—'),
     }));
+    const isWrite = (WRITE_TOOL_NAMES as readonly string[]).includes(name);
+    const outputFields: OutputFieldDoc[] = [
+      ...ERROR_OUTPUT_FIELDS,
+      ...(isWrite ? [] : PROVENANCE_OUTPUT_FIELDS),
+      ...(OUTPUT_FIELDS[name] ?? []),
+    ];
     entries.push({
       name,
       description: mdCell(description),
-      isWrite: (WRITE_TOOL_NAMES as readonly string[]).includes(name),
+      isWrite,
       fields,
+      outputFields,
+      annotations: toolAnnotations(name),
     });
   }
   return entries;
@@ -219,6 +337,24 @@ export function renderToolSection(entry: ToolDocEntry): string[] {
     );
   }
   lines.push('');
+
+  lines.push('**Output fields** (additive fields the code emits, with WP12–WP15 provenance):', '');
+  lines.push('| Field | Type | Optional | Location | Description |');
+  lines.push('|---|---|---|---|---|');
+  for (const field of entry.outputFields) {
+    lines.push(
+      `| \`${field.name}\` | ${mdCell(field.type)} | ${field.optional ? 'yes' : 'no'} `
+      + `| ${mdCell(field.location)} | ${mdCell(field.description)} |`,
+    );
+  }
+  lines.push('');
+
+  const a = entry.annotations;
+  lines.push(
+    `**Annotations:** \`readOnlyHint: ${a.readOnlyHint}\`, \`destructiveHint: ${a.destructiveHint}\`, `
+    + `\`openWorldHint: ${a.openWorldHint}\`, \`idempotentHint: ${a.idempotentHint}\`.`,
+    '',
+  );
   return lines;
 }
 
@@ -230,10 +366,11 @@ export function buildToolReference(): string {
     '# Wikimedia MCP — tool reference',
     '',
     '> **Generated file — do not edit by hand.** Run `npm run docs:tools` to regenerate.',
-    '> Derived from the shipped Zod input schemas (the same advertised JSON Schema served in `tools/list`), so the reference cannot drift from the implementation.',
-    '> A schema change without regeneration fails `tests/unit/tool-reference.test.ts` in CI.',
+    '> Input fields are derived from the shipped Zod input schemas (the same advertised JSON Schema served in `tools/list`); annotations come from the same pure function the server registers.',
+    '> Additive output fields (WP12–WP15) are documented from the closed `OUTPUT_FIELDS` registry in `src/cli/tool-reference.ts` — the only fields the code actually emits beyond each tool\'s core result shape.',
+    '> Any change to a schema, output field or annotation without regeneration fails `tests/unit/tool-reference.test.ts` in CI.',
     '',
-    `Scope: the ${entries.length}-tool default catalogue (${readOnlyCount} read-only + ${WRITE_TOOL_NAMES.length} gated write tools). Tool order follows the registry \`TOOL_NAMES\`; field order follows schema declaration order.`,
+    `Scope: the ${entries.length}-tool default catalogue (${readOnlyCount} read-only + ${WRITE_TOOL_NAMES.length} gated write tools). Tool order follows the registry \`TOOL_NAMES\`; input field order follows schema declaration order. Each tool lists its input schema, additive output fields and MCP annotations.`,
     '',
     '---',
     '',
@@ -243,5 +380,5 @@ export function buildToolReference(): string {
   return lines.join('\n');
 }
 
-// Re-exported so the drift test can assert the registry order it derives from.
+// Re-exported so the drift test can assert the registry order and known fields it derives from.
 export { GROUP_B_TOOL_NAMES, TOOL_NAMES, WRITE_TOOL_NAMES };

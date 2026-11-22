@@ -198,6 +198,8 @@ The report is also human-readable: the `[nightly]` console lines print per-tool 
 
 When the report is built by the nightly runner (a separate process from the MCP server), cache/coalescing/reduction counters are `0` because they are not visible across the process boundary — use the fixture suites for per-client instrumentation. The per-tool call counts and 429 proximity are always derived from the gate observations.
 
+**WP19 additive update (child→parent telemetry).** The nightly live test now sets `WMCP_TELEMETRY_SNAPSHOT_PATH` (default file: `reports/nightly-telemetry.json`, gitignored with the rest of `reports/`) on the MCP child. The child atomically writes a counts/ratios-only `PolitenessSnapshot` every second and once on SIGTERM; no GET endpoint is added and no token/title/secret is written. The parent reads and strictly validates that file before building the report. A new additive `telemetry_source` field is `child` when real counters were merged, or `observation-derived` when the snapshot is missing/malformed and the pre-existing fallback was used. All pre-existing report fields keep their meaning. A stale snapshot from a prior run is removed at the start of every live run.
+
 ---
 
 ## 6. Alerting policy

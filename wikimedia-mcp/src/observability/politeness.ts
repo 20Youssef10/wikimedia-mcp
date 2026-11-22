@@ -50,7 +50,8 @@ function ratio(numerator: number, denominator: number): number {
 }
 
 function observedRatio(numerator: number, denominator: number): number {
-  return denominator === 0 ? 1 : numerator / denominator;
+  // No observations means no measured rate — report 0, not a misleading 100%.
+  return denominator === 0 ? 0 : numerator / denominator;
 }
 
 /** Empty snapshot with stable zero values. */

@@ -61,6 +61,7 @@ Where a claim's precision was previously overstated or understated, the current 
 | 2026-11-21 (enhancement design) | Added report 18: APPROVED five-tranche enhancement portfolio (gate-first spine, two validated backlog tools, host config generator + legacy study, result intelligence, cost telemetry), with four design decisions, risks, non-goals and success criteria. Design only — no implementation. |
 | 2026-11-21 (implementation plan) | Added report 19: ordered WP1–WP18 plan covering all five tranches, with a locked baseline (378 tests; QA 16/16 + 10/10 + 9/9; nightly PASS; verify:catalogue 28; read-only 23), strict-sequence vs parallel lanes, binary exit gates, per-WP test strategy, 12-item risk register and portfolio definition of done. Plan only — no implementation. |
 | 2026-11-22 (enhancement portfolio complete) | All 18 work packages delivered. Tranche 1: gate status CLI, sign-off recorder, WORM adapter, approver helper, testwiki rollback harness. Tranche 2: demand telemetry decided **DROP/defer** for both backlog tools (zero demand; no tools built). Tranche 3: 12-host config generator, drift-proof TOOLS.md, legacy study recommends **keep modern-only**. Tranche 4: ranking hints, tiered caching, error-recovery fields, provenance block (additive only). Tranche 5: politeness telemetry, adaptive concurrency (never >3), auth-isolated request coalescing. Final gates: 484 tests passing / 5 skipped, docs drift gate green, catalogue 28, read-only 5/5, QA 16/16 + 10/10 + 9/9, nightly PASS. G1/G8 remain human-owned and unsigned; no real wiki write performed. |
+| 2026-11-22 (observability closure) | Closed the two remaining observability gaps: child-process politeness telemetry is now atomically snapshotted and merged into `reports/nightly-live.json` (additive `telemetry_source: child`), and `TOOLS.md` now documents output fields and annotations for all 28 tools using a shared annotation module so docs cannot drift. Fixed a pre-existing `cache_hit_rate` defect that reported 1 with zero lookups. Ran the monthly Group D watch: **STEADY**, reversal triggers not hit — no build. Final gates: 498 tests passing / 5 skipped, docs drift green, catalogue 28, read-only 5/5, QA 16/16 + 10/10 + 9/9. |
 
 ## Reports
 
@@ -84,6 +85,7 @@ Where a claim's precision was previously overstated or understated, the current 
 | `16-write-tools-contract.md` | Frozen write tools + G1–G12 control plane, AC-130…AC-155 | Frozen v7.0.0 — shipping blocked until gates evidenced |
 | `18-enhancement-design.md` | APPROVED post-merge feature portfolio: five tranches, decision log, validation triggers, risks and success criteria | Approved design |
 | `19-enhancement-implementation-plan.md` | Ordered WP1–WP18 plan: baseline lock, dependencies, acceptance criteria, test strategy, risk register, DoD | All WPs complete |
+| `handoff/group-d-watch-report.json` | Monthly Group D demand-watch snapshot (STEADY at 2026-11-22: 1 registry entry, 19 downloads/month) | Tracked snapshot |
 | `test-corpus.json` | 101+ machine-readable test cases (A–G, all categories) | Validated JSON |
 
 ## How to use these documents

@@ -1,0 +1,235 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-11-22T00:03:31.881Z",
+  "run_kind": "monthly-read-only-demand-watch",
+  "automated": true,
+  "writes_performed": "local report file only; all HTTP calls were GET",
+  "baseline": {
+    "source": "../wikimedia-mcp-research/12-group-d-spike.md",
+    "observed_at": "2026-11-21",
+    "registry_exact_query_counts": {
+      "recent changes": 0,
+      "recentchange": 0,
+      "eventstreams": 0,
+      "wikimedia stream": 0
+    },
+    "dedicated_package_downloads_last_month": 19,
+    "general_package_downloads_last_month": {
+      "wikipedia-mcp": 68555,
+      "@professional-wiki/mediawiki-mcp-server": 9485,
+      "@cyanheads/wikipedia-mcp-server": 3123
+    },
+    "relevant_github_issues": 0,
+    "thresholds": {
+      "spike_more_active_registry_live_change_entries": 2,
+      "drop_dedicated_downloads_per_month_below": 50,
+      "drop_observation_window_days": 28
+    }
+  },
+  "observations": {
+    "registry": {
+      "observations": [
+        {
+          "url": "https://registry.modelcontextprotocol.io/v0/servers?search=recent%20changes&limit=100",
+          "ok": true,
+          "status": 200,
+          "elapsed_ms": 779,
+          "error": null,
+          "query": "recent changes",
+          "raw_count": 0,
+          "live_change_matches": 0,
+          "baseline_count": 0,
+          "delta_vs_baseline": 0,
+          "note": "The registry search parameter matches descriptions, not names (report 12 §2.1); this is a coarse signal only."
+        },
+        {
+          "url": "https://registry.modelcontextprotocol.io/v0/servers?search=recentchange&limit=100",
+          "ok": true,
+          "status": 200,
+          "elapsed_ms": 187,
+          "error": null,
+          "query": "recentchange",
+          "raw_count": 0,
+          "live_change_matches": 0,
+          "baseline_count": 0,
+          "delta_vs_baseline": 0,
+          "note": "The registry search parameter matches descriptions, not names (report 12 §2.1); this is a coarse signal only."
+        },
+        {
+          "url": "https://registry.modelcontextprotocol.io/v0/servers?search=eventstreams&limit=100",
+          "ok": true,
+          "status": 200,
+          "elapsed_ms": 177,
+          "error": null,
+          "query": "eventstreams",
+          "raw_count": 0,
+          "live_change_matches": 0,
+          "baseline_count": 0,
+          "delta_vs_baseline": 0,
+          "note": "The registry search parameter matches descriptions, not names (report 12 §2.1); this is a coarse signal only."
+        },
+        {
+          "url": "https://registry.modelcontextprotocol.io/v0/servers?search=wikimedia%20stream&limit=100",
+          "ok": true,
+          "status": 200,
+          "elapsed_ms": 179,
+          "error": null,
+          "query": "wikimedia stream",
+          "raw_count": 0,
+          "live_change_matches": 0,
+          "baseline_count": 0,
+          "delta_vs_baseline": 0,
+          "note": "The registry search parameter matches descriptions, not names (report 12 §2.1); this is a coarse signal only."
+        },
+        {
+          "url": "https://registry.modelcontextprotocol.io/v0/servers?search=wikipedia&limit=100",
+          "ok": true,
+          "status": 200,
+          "elapsed_ms": 340,
+          "error": null,
+          "query": "wikipedia",
+          "raw_count": 49,
+          "live_change_matches": 1,
+          "baseline_count": null,
+          "delta_vs_baseline": null,
+          "note": "The registry search parameter matches descriptions, not names (report 12 §2.1); this is a coarse signal only."
+        }
+      ],
+      "distinct_active_live_change_entries": 1,
+      "entries": [
+        {
+          "name": "{\"server\":{\"$schema\":\"https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json\",\"name\":\"io.github.gu",
+          "description": null,
+          "status": null
+        }
+      ]
+    },
+    "npm": [
+      {
+        "url": "https://api.npmjs.org/downloads/point/last-month/%40insnapsprakhar%2Fwikipedia-recent-changes-mcp",
+        "ok": true,
+        "status": 200,
+        "elapsed_ms": 809,
+        "error": null,
+        "package": "@insnapsprakhar/wikipedia-recent-changes-mcp",
+        "downloads_last_month": 19,
+        "baseline_downloads": 19,
+        "delta_vs_baseline": 0
+      },
+      {
+        "url": "https://api.npmjs.org/downloads/point/last-month/wikipedia-mcp",
+        "ok": true,
+        "status": 200,
+        "elapsed_ms": 721,
+        "error": null,
+        "package": "wikipedia-mcp",
+        "downloads_last_month": 68555,
+        "baseline_downloads": 68555,
+        "delta_vs_baseline": 0
+      },
+      {
+        "url": "https://api.npmjs.org/downloads/point/last-month/%40professional-wiki%2Fmediawiki-mcp-server",
+        "ok": true,
+        "status": 200,
+        "elapsed_ms": 745,
+        "error": null,
+        "package": "@professional-wiki/mediawiki-mcp-server",
+        "downloads_last_month": 9485,
+        "baseline_downloads": 9485,
+        "delta_vs_baseline": 0
+      },
+      {
+        "url": "https://api.npmjs.org/downloads/point/last-month/%40cyanheads%2Fwikipedia-mcp-server",
+        "ok": true,
+        "status": 200,
+        "elapsed_ms": 754,
+        "error": null,
+        "package": "@cyanheads/wikipedia-mcp-server",
+        "downloads_last_month": 3123,
+        "baseline_downloads": 3123,
+        "delta_vs_baseline": 0
+      }
+    ],
+    "github": {
+      "issues": {
+        "url": "https://api.github.com/search/issues?q=wikimedia%20mcp%20recent%20changes%20in%3Atitle%2Cbody%20type%3Aissue&per_page=20",
+        "ok": true,
+        "status": 200,
+        "elapsed_ms": 1168,
+        "error": null,
+        "query": "wikimedia mcp recent changes in:title,body type:issue",
+        "raw_count": 13,
+        "keyword_candidates": [
+          {
+            "title": "📊 AI CLI Tools Digest 2026-08-04",
+            "url": "https://github.com/xiehd77-del/agents-radar/issues/426",
+            "state": "closed"
+          },
+          {
+            "title": "📊 AI CLI Tools Digest 2026-08-04",
+            "url": "https://github.com/duanyytop/agents-radar/issues/2505",
+            "state": "closed"
+          }
+        ],
+        "baseline_relevant_count": 0,
+        "note": "Search noise was 13 raw / 0 relevant in report 12 §2.4. Keyword candidates require human relevance review."
+      },
+      "repositories": {
+        "url": "https://api.github.com/search/repositories?q=wikimedia%20mcp%20recent%20changes&sort=stars&per_page=10",
+        "ok": true,
+        "status": 200,
+        "elapsed_ms": 262,
+        "error": null,
+        "query": "wikimedia mcp recent changes",
+        "raw_count": 0,
+        "live_sse_candidates": [],
+        "note": "Top-10-by-stars heuristic only; whether a repo \"adds a live SSE tool\" needs human review."
+      }
+    }
+  },
+  "evaluations": [
+    {
+      "id": "SPIKE_MORE_ON_EVENTSTREAMS",
+      "trigger": ">=2 active registry entries advertise EventStreams/live-change tools (report 12 §6 trigger 1)",
+      "automatic": true,
+      "status": "NOT_TRIGGERED",
+      "observed": {
+        "distinct_active_live_change_entries": 1
+      }
+    },
+    {
+      "id": "DROP_BOUNDED_TOOL_CANDIDATE",
+      "trigger": "dedicated package <50 downloads/month AND no registry entry/GitHub issue/downstream ask, within 4 weeks of shipping (report 12 §6 trigger 2)",
+      "automatic": "partial",
+      "status": "NOT_TRIGGERED",
+      "observed": {
+        "dedicated_downloads_last_month": 19,
+        "registry_no_signal_exact_queries": true,
+        "github_issue_no_signal": false
+      },
+      "caveat": "The 4-week post-ship window and \"downstream user asks\" cannot be determined from public APIs; operator must confirm."
+    },
+    {
+      "id": "TOP10_WIKIMEDIA_REPO_ADDS_LIVE_SSE",
+      "trigger": "a top-10 Wikimedia MCP repo adds a live SSE tool (report 12 §6 trigger 1)",
+      "automatic": "heuristic",
+      "status": "NO_SIGNAL",
+      "observed": {
+        "candidates": []
+      }
+    }
+  ],
+  "manual_review_items": [
+    "Concrete user/issue requiring sub-minute push rather than polling (report 12 §6 trigger 1).",
+    "Cost/ToS change: Wikimedia tightens Action API rate limits or publishes an affordable Enterprise Realtime tier (report 12 §6 trigger 3).",
+    "Architecture change: MCP adds a first-class resumable streaming primitive (report 12 §6 trigger 4).",
+    "Relevance of keyword candidates in GitHub issues/repositories; registry search matches descriptions, not names.",
+    "Whether the 4-week post-ship window has elapsed and whether any downstream user asked for the feature."
+  ],
+  "overall_status": "STEADY",
+  "warnings": [],
+  "notes": [
+    "This is a monitoring artefact, not a decision. Do not change code or gate status from an automated signal alone.",
+    "Baseline numbers are from report 12, observed 2026-11-21; general-purpose package downloads are not proof of recent-change demand."
+  ]
+}

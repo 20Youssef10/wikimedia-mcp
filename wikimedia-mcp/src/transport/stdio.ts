@@ -13,7 +13,12 @@ import { isForbiddenHostRpc, forbiddenHostResponse } from '../protocol/host-guar
  * stderr. `subscriptions/listen` is intercepted before the SDK serving entry
  * sees it so Phase 1 returns -32601 (AC-13) with no long-lived stream.
  */
-export function startStdioTransport(config: Config, client: WikimediaClient, logger: Logger): StdioServerHandle {
+export function startStdioTransport(
+  config: Config,
+  client: WikimediaClient,
+  logger: Logger,
+  onShutdown?: () => void,
+): StdioServerHandle {
   const inbound = new PassThrough();
   const outbound = new PassThrough();
   const transport = new StdioServerTransport(inbound, outbound);
@@ -74,6 +79,8 @@ export function startStdioTransport(config: Config, client: WikimediaClient, log
     if (shuttingDown) return;
     shuttingDown = true;
     try {
+      // WP19 — best-effort final telemetry flush on every shutdown path.
+      onShutdown?.();
       await handle.close();
       client.close();
     } finally {

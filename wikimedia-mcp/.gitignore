@@ -1,2 +1,4 @@
 # Nightly live-gate evidence (regenerated on every run)
 reports/
+# WP19 child→parent politeness snapshots (regenerated each run; covered by reports/)
+reports/nightly-telemetry.json
