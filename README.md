@@ -1,8 +1,8 @@
-# Wikimedia MCP — Phase 1 + Phase 2 + Phase 3 (read-only)
+# Wikimedia MCP
 
-A TypeScript implementation of the frozen Phase 1 contract (`09-implementation-contract.md`,
-v1.0.1), the frozen Phase 2 Group B contract (`10-phase2-contract.md`, v2.0.0)
-and the frozen Phase 3 Group C/F contract (`11-phase3-contract.md`, v3.0.0),
+A TypeScript implementation of the frozen Phase 1 contract (`research/09-implementation-contract.md`,
+v1.0.1), the frozen Phase 2 Group B contract (`research/10-phase2-contract.md`, v2.0.0)
+and the frozen Phase 3 Group C/F contract (`research/11-phase3-contract.md`, v3.0.0),
 targeting **MCP 2026-07-28** (stateless, `server/discover`, per-request `_meta`,
 routing headers, `resultType`/`ttlMs`/`cacheScope`).
 
@@ -32,6 +32,95 @@ change notifications (`subscriptions/listen` returns `-32601`).
 > [`SDK-VERIFICATION.md`](./SDK-VERIFICATION.md) for the gate evidence.
 
 ---
+
+## Quick start
+
+Requires Node.js 22+ and npm 11 (see [Requirements](#requirements)). From the
+repository root:
+
+```bash
+npm ci                          # install from the committed lockfile
+npm run build                   # compile TypeScript to dist/
+READ_ONLY_PROFILE=1 npm test    # fixture-only suite; no live network calls
+```
+
+Run over **stdio** (the default transport):
+
+```bash
+USER_AGENT='WikiMCP/1.0 (https://example.org/bot; ops@example.org)' npm start
+```
+
+Or over **Streamable HTTP** on loopback:
+
+```bash
+MCP_TRANSPORT=streamable-http MCP_HTTP_HOST=127.0.0.1 MCP_HTTP_PORT=3000 \
+MCP_HTTP_PATH=/mcp MCP_ALLOWED_HOSTS=127.0.0.1,localhost \
+USER_AGENT='WikiMCP/1.0 (https://example.org/bot; ops@example.org)' npm start
+```
+
+`USER_AGENT` is required in all cases. See [Install and run](#install-and-run)
+for the full configuration and [Host configuration examples](#host-configuration-examples)
+for host snippets.
+
+## Status
+
+- **28 tools** in the default catalogue: 23 read-only + 5 write tools.
+- **MCP 2026-07-28** only (stateless, `server/discover`, per-request `_meta`).
+- Verification green: **498 passed / 5 skipped** (`npm test`), plus independent
+  QA smoke checks **16/16**, **10/10** and **9/9**.
+- The five write tools are **registered but fail closed** — with no OAuth/CIMD
+  configuration they return `authentication_required`/`invalid_issuer` and G8
+  blocks real uploads (`licence_not_signed_off`). Named human sign-off for G1/G8
+  is still pending, and no real wiki write is performed in any test or harness.
+
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `src/` | TypeScript server implementation: protocol, tool registry, transports, write controls and observability. |
+| `tests/` | Fixture-backed Vitest suites (contract, wikidata, phase3, phase5, groupd, write, security, unit and live). |
+| `scripts/` | CLI helpers: `wmcp`, `gate-status`, `rollback-harness`, catalogue assertions, tool-reference generator and smoke script. |
+| `research/` | The numbered research/contract reports (01–19), the research `README.md` index and the JSON test corpus. |
+| `handoff/` | Operational docs: deployment runbook, nightly scheduler, sign-off templates, rollback and security runbooks. |
+| `write-security/` | Write-tool risk sign-off, rollback/approval runbooks, evidence and recorded decisions. |
+| `TOOLS.md` | Generated tool reference; regenerate with `npm run docs:tools`. |
+| `SDK-VERIFICATION.md` | Evidence for the v2 SDK / MCP 2026-07-28 gate. |
+| `reports/` | Generated nightly, gate and demand evidence; gitignored, never committed. |
+
+## Documentation index
+
+**Research and contracts**
+
+- [research/README.md](./research/README.md) — index of the research reports.
+- [Implementation contract, report 09](./research/09-implementation-contract.md)
+- [Enhancement design, report 18](./research/18-enhancement-design.md)
+- [Enhancement implementation plan, report 19](./research/19-enhancement-implementation-plan.md)
+
+**Operations**
+
+- [Deployment runbook](./handoff/DEPLOYMENT-RUNBOOK.md)
+- [Sign-off templates](./handoff/SIGNOFF-TEMPLATES.md)
+
+**Reference**
+
+- [TOOLS.md](./TOOLS.md)
+- [SDK-VERIFICATION.md](./SDK-VERIFICATION.md)
+
+**Community and policy**
+
+- [Security policy](./SECURITY.md)
+- [Contributing guide](./CONTRIBUTING.md)
+- [Code of conduct](./CODE_OF_CONDUCT.md)
+- [Support](./SUPPORT.md)
+- [Changelog](./CHANGELOG.md)
+
+## Community
+
+- [CONTRIBUTING.md](./CONTRIBUTING.md) — setup, coding standards, tests and PR process.
+- [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) — Contributor Covenant v2.1.
+- [SECURITY.md](./SECURITY.md) — private vulnerability reporting and security posture.
+- [SUPPORT.md](./SUPPORT.md) — where to get help and what to include in a report.
+- [CHANGELOG.md](./CHANGELOG.md) — release history by tag.
 
 ## Requirements
 
