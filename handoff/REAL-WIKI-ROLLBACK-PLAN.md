@@ -4,7 +4,7 @@
 
 Dry-run and diff preview are fixture-evidenced only; rollback execution against a real wiki is **untested** (`write-security/signoff.md:16-17`, report 17 §"Report 08 §7 verification items" item 10). This document is a plan for a human operator to execute on `test.wikipedia.org` or a private wiki. It does not authorise a write, does not invent results, and records no signatures.
 
-**Grounding:** `wikimedia-mcp/write-security/rollback-runbooks.md`, research report 08 §6.2 G7 / §7, report 16 §2.6 / AC-147-ish rollback path, report 17, `src/write/handlers.ts` (dry-run path), `src/write/config.ts:164-170` (testwiki-only project allowlist).
+**Grounding:** `write-security/rollback-runbooks.md`, research report 08 §6.2 G7 / §7, report 16 §2.6 / AC-147-ish rollback path, report 17, `src/write/handlers.ts` (dry-run path), `src/write/config.ts:164-170` (testwiki-only project allowlist).
 
 ---
 
@@ -141,6 +141,6 @@ npm run wmcp -- rollback-harness --project testwiki --tool edit_page --dry-run
 
 `--execute` without `--i-have-signoff` (or without operator/witness refs) exits non-zero and
 makes no call. The CLI writes a plan/evidence **skeleton** to
-`wikimedia-mcp/write-security/evidence/`; real evidence (exported `events` + `anchors`, chain
+`write-security/evidence/`; real evidence (exported `events` + `anchors`, chain
 verified) is attached only by the human after execution. The blank sign-off blocks above
 remain blank — the harness does not fill them in.

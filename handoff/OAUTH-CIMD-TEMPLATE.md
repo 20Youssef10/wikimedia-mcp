@@ -2,7 +2,7 @@
 
 **Status:** TEMPLATE ONLY — contains **PLACEHOLDER values, no real secrets, no real issuer**. Do not copy into a `.env` file and expect writes to work. Production OAuth/issuer wiring has never been exercised with a real provider; the only round-trip evidence is the fixture harness (`tests/write/harness.ts`, AC-133).
 
-**Grounding:** `wikimedia-mcp/src/write/auth.ts` (all validation logic), `src/write/config.ts:79-92,138-237` (exact key names and boot rules), `src/write/constants.ts:9-24` (scope map), `src/write/transport.ts:93-97` (secret-store token selection), `write-security/signoff.md:20`, research report 16 §2.1/§2.2.
+**Grounding:** `src/write/auth.ts` (all validation logic), `src/write/config.ts:79-92,138-237` (exact key names and boot rules), `src/write/constants.ts:9-24` (scope map), `src/write/transport.ts:93-97` (secret-store token selection), `write-security/signoff.md:20`, research report 16 §2.1/§2.2.
 
 ---
 

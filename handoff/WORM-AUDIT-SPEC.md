@@ -2,7 +2,7 @@
 
 **Status:** requirements + gap statement. **The current implementation is a local, in-memory HMAC hash chain (`AuditStore`) with an injectable daily-anchor callback whose default sink is a no-op. External WORM anchoring is NOT DONE.** No production audit sink has been configured, exercised or signed off.
 
-**Grounding:** `wikimedia-mcp/src/write/audit.ts` (full implementation), `src/write/config.ts:65-67,180-181,221-223` (sink / HMAC secret / retention keys), `src/write/constants.ts:35-38` (outcomes), `write-security/incident-revocation-drill.md:18,23`, `tests/write/control-plane.test.ts:273-321`, `tests/write/incident-drill.test.ts:56-67`, research report 08 §5.4/§6.2 G6/§7 item 11.
+**Grounding:** `src/write/audit.ts` (full implementation), `src/write/config.ts:65-67,180-181,221-223` (sink / HMAC secret / retention keys), `src/write/constants.ts:35-38` (outcomes), `write-security/incident-revocation-drill.md:18,23`, `tests/write/control-plane.test.ts:273-321`, `tests/write/incident-drill.test.ts:56-67`, research report 08 §5.4/§6.2 G6/§7 item 11.
 
 ---
 

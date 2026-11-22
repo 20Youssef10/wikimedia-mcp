@@ -6,8 +6,8 @@
 ## G1 / AC-155 — authorisation for enablement
 - The **Product Owner (the requester in this session) explicitly instructed: "enable all tools"** on 2026-11-21. This record treats that instruction as the authorisation to enable the tools.
 - **Independent named signatures from a Security Architect, a Backend Lead and a Product Owner were NOT obtained.** No names or signatures are fabricated here. This is a **risk acceptance by the requester**, not the three-way sign-off required by frozen contract 16 §8 / AC-155.
-- The technical threat re-review in `../wikimedia-mcp-research/17-threat-model-rereview.md` remains valid; the formal gate is accepted-by-risk rather than signed.
-- **Owner map (role titles only, NOT signatures):** Security Architect / Backend Lead / Product Owner. Per the requester's 2026-11-21 instruction these role titles — not personal names — are recorded as the intended signatories in `../../handoff/SIGNOFF-TEMPLATES.md`. Dates, decisions and signatures remain blank; this is not three-way sign-off.
+- The technical threat re-review in `research/17-threat-model-rereview.md` remains valid; the formal gate is accepted-by-risk rather than signed.
+- **Owner map (role titles only, NOT signatures):** Security Architect / Backend Lead / Product Owner. Per the requester's 2026-11-21 instruction these role titles — not personal names — are recorded as the intended signatories in `handoff/SIGNOFF-TEMPLATES.md`. Dates, decisions and signatures remain blank; this is not three-way sign-off.
 
 ## G8 — upload licence / ToU
 - The upload compliance checklist (`upload-tou-checklist.md`) remains **PENDING human Legal/Compliance review**. It is deliberately **not** marked complete.

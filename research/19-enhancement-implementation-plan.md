@@ -6,7 +6,7 @@
 **Status:** ACTIONABLE — implements the APPROVED design in `18-enhancement-design.md` v1.0.0
 **Approach:** Approach C (balanced portfolio) with Approach A's gate-first spine as the non-negotiable first tranche
 **Authority:** This plan operationalises report 18; it does not itself authorise any real wiki write, any Enterprise work, or any fabricated human signature.
-**Grounding:** `18-enhancement-design.md`; `README.md` (research conventions); `wikimedia-mcp/package.json`, `wikimedia-mcp/src/`, `wikimedia-mcp/tests/`, `wikimedia-mcp/scripts/`, `wikimedia-mcp/write-security/`; `handoff/` artefacts (deployment runbook, sign-off templates, WORM spec, rollback plan, OAuth/CIMD template, nightly scheduler, G8 checklist, Group D reversal watch).
+**Grounding:** `18-enhancement-design.md`; `README.md` (research conventions); `package.json`, `src/`, `tests/`, `scripts/`, `write-security/`; `handoff/` artefacts (deployment runbook, sign-off templates, WORM spec, rollback plan, OAuth/CIMD template, nightly scheduler, G8 checklist, Group D reversal watch).
 
 ---
 
@@ -86,15 +86,15 @@ npm run build && WMCP_LIVE=1 npx vitest run tests/live/live.test.ts
 #### WP1 — Gate status CLI (`npm run gate:status`)
 
 - **Goal:** Print G1–G12 status, evidence paths and residual risks in one command; flag unsigned gates; freeze the baseline from §2 into the first gate report.
-- **Inputs / dependencies:** None (first WP). Reads `handoff/SIGNOFF-TEMPLATES.md`, `handoff/WORM-AUDIT-SPEC.md`, `handoff/REAL-WIKI-ROLLBACK-PLAN.md`, `handoff/G8-UPLOAD-TOC-CHECKLIST.md`, `handoff/OAUTH-CIMD-TEMPLATE.md`, `handoff/DEPLOYMENT-RUNBOOK.md`, `wikimedia-mcp/write-security/signoff.md`, `wikimedia-mcp/reports/nightly-live.json`. **Must land before WP2** (the recorder's records must be displayable by this CLI).
+- **Inputs / dependencies:** None (first WP). Reads `handoff/SIGNOFF-TEMPLATES.md`, `handoff/WORM-AUDIT-SPEC.md`, `handoff/REAL-WIKI-ROLLBACK-PLAN.md`, `handoff/G8-UPLOAD-TOC-CHECKLIST.md`, `handoff/OAUTH-CIMD-TEMPLATE.md`, `handoff/DEPLOYMENT-RUNBOOK.md`, `write-security/signoff.md`, `reports/nightly-live.json`. **Must land before WP2** (the recorder's records must be displayable by this CLI).
 - **Files / areas to touch (new unless noted):**
-  - `wikimedia-mcp/src/cli/gate-status.ts` — pure status builder: gate id → `{status, evidence_paths[], residual_risks[], signed:boolean}`.
-  - `wikimedia-mcp/src/cli/index.ts` — subcommand dispatcher (`gate status`, later `gate record`).
-  - `wikimedia-mcp/scripts/gate-status.mjs` — thin ESM entry (mirrors `scripts/assert-catalogue.mjs` style).
-  - `wikimedia-mcp/scripts/wmcp.mjs` — unified `wmcp` entry for later subcommands.
-  - `wikimedia-mcp/package.json` — add scripts `gate:status` and `wmcp`.
-  - `wikimedia-mcp/tests/unit/gate-status.test.ts` — fixture-based status tests.
-  - `wikimedia-mcp/README.md` — document the command (additive section).
+  - `src/cli/gate-status.ts` — pure status builder: gate id → `{status, evidence_paths[], residual_risks[], signed:boolean}`.
+  - `src/cli/index.ts` — subcommand dispatcher (`gate status`, later `gate record`).
+  - `scripts/gate-status.mjs` — thin ESM entry (mirrors `scripts/assert-catalogue.mjs` style).
+  - `scripts/wmcp.mjs` — unified `wmcp` entry for later subcommands.
+  - `package.json` — add scripts `gate:status` and `wmcp`.
+  - `tests/unit/gate-status.test.ts` — fixture-based status tests.
+  - `README.md` — document the command (additive section).
 - **Acceptance criteria (binary, testable):**
   - [ ] `npm run gate:status` exits **0** and prints a row for each of G1…G12 (12 rows).
   - [ ] Each row exposes at least one evidence path that exists on disk, or the literal `NOT EVIDENCED`.
@@ -111,13 +111,13 @@ npm run build && WMCP_LIVE=1 npx vitest run tests/live/live.test.ts
 - **Goal:** Provide a tamper-evident, append-only recorder for human gate decisions that the boot gate and `gate:status` can read. Explicitly labelled *records decisions, does not sign*.
 - **Inputs / dependencies:** Requires WP1 (gate status CLI exists to display records). Reuses `handoff/SIGNOFF-TEMPLATES.md` block structure and the HMAC-chain pattern in `src/write/audit.ts`.
 - **Files / areas to touch:**
-  - `wikimedia-mcp/src/cli/gate-record.ts` — `recordGateDecision({role, decision, evidenceHash, gateId, signatoryRef})`; appends a hash-chained record.
-  - `wikimedia-mcp/src/cli/record-chain.ts` — small append/verify chain (canonical JSON + HMAC-SHA256, `genesis` head, `verify()`), mirroring `AuditStore` semantics without reusing write secrets.
-  - `wikimedia-mcp/write-security/records/` (new dir) — append-only `gate-decisions.json` + daily anchors; gitignored raw secrets, committed schema/doc only.
-  - `wikimedia-mcp/src/cli/gate-status.ts` (edit) — read records and report a gate as `RECORDED (not signed)` distinctly from `SIGNED`.
-  - `wikimedia-mcp/src/write/config.ts` (edit, read-only inspection only) — expose a helper for "does a genuine signed record exist" used by the existing `MCP_WRITE_GATES_SIGNED` boot rule; **do not relax that rule**.
-  - `wikimedia-mcp/tests/unit/gate-record.test.ts` — append, verify, tamper (edit/delete/reorder/truncate) tests.
-  - `wikimedia-mcp/write-security/signoff.md` (edit, additive) — one line clarifying recorder vs signature; no names/dates added.
+  - `src/cli/gate-record.ts` — `recordGateDecision({role, decision, evidenceHash, gateId, signatoryRef})`; appends a hash-chained record.
+  - `src/cli/record-chain.ts` — small append/verify chain (canonical JSON + HMAC-SHA256, `genesis` head, `verify()`), mirroring `AuditStore` semantics without reusing write secrets.
+  - `write-security/records/` (new dir) — append-only `gate-decisions.json` + daily anchors; gitignored raw secrets, committed schema/doc only.
+  - `src/cli/gate-status.ts` (edit) — read records and report a gate as `RECORDED (not signed)` distinctly from `SIGNED`.
+  - `src/write/config.ts` (edit, read-only inspection only) — expose a helper for "does a genuine signed record exist" used by the existing `MCP_WRITE_GATES_SIGNED` boot rule; **do not relax that rule**.
+  - `tests/unit/gate-record.test.ts` — append, verify, tamper (edit/delete/reorder/truncate) tests.
+  - `write-security/signoff.md` (edit, additive) — one line clarifying recorder vs signature; no names/dates added.
 - **Acceptance criteria:**
   - [ ] `npm run wmcp -- gate record --role <role> --decision APPROVE_WITH_CONDITIONS --evidence <sha256> --gate G6` appends exactly one record with a valid `prev_hash`/`record_hash` chain.
   - [ ] `verify()` returns `null` on an intact chain and a non-null index on each of the four tamper cases.
@@ -134,11 +134,11 @@ npm run build && WMCP_LIVE=1 npx vitest run tests/live/live.test.ts
 - **Goal:** Make the existing injectable `anchorSink` real and pluggable so the HMAC audit chain can be externally anchored; keep a documented local fallback.
 - **Inputs / dependencies:** Requires WP2 (recorded evidence format) so anchoring results can be recorded. Reuses `handoff/WORM-AUDIT-SPEC.md` §3–§7 verbatim for verification/retention/export rules.
 - **Files / areas to touch:**
-  - `wikimedia-mcp/src/write/audit-sink.ts` (new) — sink implementations: `local-noop` (default, unchanged behaviour), `append-only-log`, `s3-object-lock`, `webhook`; one exported `createAnchorSink(kind, opts)`.
-  - `wikimedia-mcp/src/write/audit.ts` (edit) — keep `AuditStore` semantics; add automatic chain verification (`verify()` + `verifyHead()`) inside `anchorDaily()` and `export()`.
-  - `wikimedia-mcp/src/write/default-runtime.ts` (edit) — inject the configured sink; default stays `local-noop`.
-  - `wikimedia-mcp/src/write/config.ts` (edit) — reuse existing `MCP_WRITE_AUDIT_SINK`/`MCP_WRITE_AUDIT_HMAC_SECRET`/`MCP_WRITE_AUDIT_RETENTION_DAYS`; **no new config keys**.
-  - `wikimedia-mcp/tests/write/worm-sink.test.ts` (new) — fixture MSW/webhook sink, append-only file sink, noop sink, chain-verify-on-export, retention metadata.
+  - `src/write/audit-sink.ts` (new) — sink implementations: `local-noop` (default, unchanged behaviour), `append-only-log`, `s3-object-lock`, `webhook`; one exported `createAnchorSink(kind, opts)`.
+  - `src/write/audit.ts` (edit) — keep `AuditStore` semantics; add automatic chain verification (`verify()` + `verifyHead()`) inside `anchorDaily()` and `export()`.
+  - `src/write/default-runtime.ts` (edit) — inject the configured sink; default stays `local-noop`.
+  - `src/write/config.ts` (edit) — reuse existing `MCP_WRITE_AUDIT_SINK`/`MCP_WRITE_AUDIT_HMAC_SECRET`/`MCP_WRITE_AUDIT_RETENTION_DAYS`; **no new config keys**.
+  - `tests/write/worm-sink.test.ts` (new) — fixture MSW/webhook sink, append-only file sink, noop sink, chain-verify-on-export, retention metadata.
   - `handoff/WORM-AUDIT-SPEC.md` (edit, additive) — mark which acceptance boxes are now machine-checkable.
 - **Acceptance criteria:**
   - [ ] All three concrete sinks pass a fixture round-trip: anchor written, `verifyHead(anchor.head) === true`, no HMAC secret in the sink payload (string scan).
@@ -156,12 +156,12 @@ npm run build && WMCP_LIVE=1 npx vitest run tests/live/live.test.ts
 - **Goal:** Validate two *distinct* OIDC subjects/groups against `MCP_WRITE_APPROVER_IDS` and feed the MRTR confirmation path, so two-person approval can be evidenced with real identities.
 - **Inputs / dependencies:** Requires WP1–WP2; reuses actor hashing from `src/write/auth.ts` and `handoff/OAUTH-CIMD-TEMPLATE.md` §3/§5 and the G11 section of `handoff/SIGNOFF-TEMPLATES.md`.
 - **Files / areas to touch:**
-  - `wikimedia-mcp/src/write/approvers.ts` (new) — `validateApprovers(approvals, config)` → hashed subject/group ids; rejects duplicates, missing, unconfigured ids; emits a structured reason.
-  - `wikimedia-mcp/src/write/handlers.ts` (edit) — call the helper on the four tools that require two-person approval; **approval_required path unchanged for failures**.
-  - `wikimedia-mcp/src/write/auth.ts` (edit, minimal) — export the existing hash-prefix helper for reuse; do not change token validation.
-  - `wikimedia-mcp/src/write/config.ts` (edit) — keep the `>= 2 distinct ids` boot rule; no relaxation.
-  - `wikimedia-mcp/tests/write/approvers.test.ts` (new) — distinctness, hashed-only storage, unconfigured id, replay, scope interaction.
-  - `wikimedia-mcp/write-security/two-person-approval-runbook.md` (edit, additive) — note the helper and that it does not supply identities.
+  - `src/write/approvers.ts` (new) — `validateApprovers(approvals, config)` → hashed subject/group ids; rejects duplicates, missing, unconfigured ids; emits a structured reason.
+  - `src/write/handlers.ts` (edit) — call the helper on the four tools that require two-person approval; **approval_required path unchanged for failures**.
+  - `src/write/auth.ts` (edit, minimal) — export the existing hash-prefix helper for reuse; do not change token validation.
+  - `src/write/config.ts` (edit) — keep the `>= 2 distinct ids` boot rule; no relaxation.
+  - `tests/write/approvers.test.ts` (new) — distinctness, hashed-only storage, unconfigured id, replay, scope interaction.
+  - `write-security/two-person-approval-runbook.md` (edit, additive) — note the helper and that it does not supply identities.
 - **Acceptance criteria:**
   - [ ] Two distinct configured approver ids → approval accepted; two identical ids → rejected with `approval_required` (binary).
   - [ ] Approver ids are stored only as `sha256-prefix:`; raw subjects never appear in audit or logs (string scan).
@@ -177,10 +177,10 @@ npm run build && WMCP_LIVE=1 npx vitest run tests/live/live.test.ts
 - **Goal:** A recording harness for the dry-run → edit → rollback → verify sequence that produces a signed *evidence artefact*; the human performs the write, the tool records it.
 - **Inputs / dependencies:** Requires WP3 (chain export) and WP4 (two distinct approvers) plus the REAL-WIKI-ROLLBACK-PLAN prerequisites and real G8/AC-155 signatures — which are **owner-supplied**. This WP builds the harness; it does not execute a real write.
 - **Files / areas to touch:**
-  - `wikimedia-mcp/src/cli/rollback-harness.ts` (new) — orchestrates preview/execute/rollback calls against the existing write handlers; refuses any project other than `testwiki`.
-  - `wikimedia-mcp/scripts/rollback-harness.mjs` (new) — ESM entry, `--dry-run` default, `--execute` requires explicit `--operator`/`--witness` refs and `--i-have-signoff`.
-  - `wikimedia-mcp/write-security/evidence/` (new dir) — newline-terminated JSON evidence artefacts (exported chain + diff hashes + timestamps).
-  - `wikimedia-mcp/tests/unit/rollback-harness.test.ts` (new) — fixture-only: project rejection, dry-run no mutation, artefact shape, chain export present.
+  - `src/cli/rollback-harness.ts` (new) — orchestrates preview/execute/rollback calls against the existing write handlers; refuses any project other than `testwiki`.
+  - `scripts/rollback-harness.mjs` (new) — ESM entry, `--dry-run` default, `--execute` requires explicit `--operator`/`--witness` refs and `--i-have-signoff`.
+  - `write-security/evidence/` (new dir) — newline-terminated JSON evidence artefacts (exported chain + diff hashes + timestamps).
+  - `tests/unit/rollback-harness.test.ts` (new) — fixture-only: project rejection, dry-run no mutation, artefact shape, chain export present.
   - `handoff/REAL-WIKI-ROLLBACK-PLAN.md` (edit, additive) — reference the harness commands in the existing human checklist; do not fill in result blanks.
 - **Acceptance criteria:**
   - [ ] `--dry-run` makes zero mutating Action API calls and returns `executed:false, would_change:true` (fixture assertion).
@@ -202,12 +202,12 @@ npm run build && WMCP_LIVE=1 npx vitest run tests/live/live.test.ts
 - **Goal:** Collect the demand signals the two flagged tools require, and produce a binary build/drop decision. This WP is the **telemetry prerequisite** that unblocks WP7/WP8.
 - **Inputs / dependencies:** After Tranche 1. Reuses the nightly report infrastructure (`src/observability/nightly-report.ts`) and `handoff/NIGHTLY-SCHEDULER.md` collection/alerting pattern. No new config keys.
 - **Files / areas to touch:**
-  - `wikimedia-mcp/src/observability/demand-telemetry.ts` (new) — incremental counters: `get_summary`/`search` call sites, `revision_diff_requested` and `category_traversal_requested` signal counters, keyed by tool and session surrogate (no PII).
-  - `wikimedia-mcp/src/server/tools/handlers.ts` (edit, additive instrumentation only) — increment signal counters on the relevant read paths.
-  - `wikimedia-mcp/src/observability/nightly-report.ts` (edit, additive optional fields only) — include `demand_signals` block; keep `schema_version:1` compatibility by adding optional fields.
-  - `wikimedia-mcp/reports/demand.json` (new, gitignored, archived by timestamp per scheduler §5) — rolling evidence.
-  - `wikimedia-mcp/tests/unit/demand-telemetry.test.ts` (new).
-  - `wikimedia-mcp/README.md` (additive) — explain "signals are counts, not requests".
+  - `src/observability/demand-telemetry.ts` (new) — incremental counters: `get_summary`/`search` call sites, `revision_diff_requested` and `category_traversal_requested` signal counters, keyed by tool and session surrogate (no PII).
+  - `src/server/tools/handlers.ts` (edit, additive instrumentation only) — increment signal counters on the relevant read paths.
+  - `src/observability/nightly-report.ts` (edit, additive optional fields only) — include `demand_signals` block; keep `schema_version:1` compatibility by adding optional fields.
+  - `reports/demand.json` (new, gitignored, archived by timestamp per scheduler §5) — rolling evidence.
+  - `tests/unit/demand-telemetry.test.ts` (new).
+  - `README.md` (additive) — explain "signals are counts, not requests".
 - **Acceptance criteria:**
   - [ ] Counters increment only on the documented read paths; no PII, token or title content in `reports/demand.json` (string scan).
   - [ ] Report remains parseable by the existing nightly alert snippet (`overallPass`, `m4_429_count`, `failures` unchanged).
@@ -224,12 +224,12 @@ npm run build && WMCP_LIVE=1 npx vitest run tests/live/live.test.ts
 - **Goal:** Add a flagged, default-off read tool wrapping Action API `action=compare`.
 - **Inputs / dependencies:** WP6 decision = BUILD. Follows the existing group-module pattern (`src/groupg`, `src/groupd`).
 - **Files / areas to touch:**
-  - `wikimedia-mcp/src/compare/{constants,schemas,handlers}.ts` (new) — Zod schema, bounded diff output, `source`/`lang`/`project` allowlist, `ttlMs`/`cacheScope` where mandated by contract.
-  - `wikimedia-mcp/src/config.ts` (edit, additive) — flag `MCP_ENABLE_COMPARE_REVISIONS` default `false`, following the existing boolean-env pattern.
-  - `wikimedia-mcp/src/server/tools/registry.ts` (edit, additive) — conditionally add to `PHASE1/activeToolNames()`-equivalent registration only when flag is true; default `TOOL_NAMES` stays 28.
-  - `wikimedia-mcp/tests/unit/compare-revisions.test.ts` + a new `tests/contract/compare.test.ts` (new) — schema, bounds, flag-off absence, flag-on registration.
-  - `wikimedia-mcp/scripts/assert-catalogue.mjs` (edit, additive only) — assert flag-off = 28; add a separate flag-on check that expects 29 without removing any existing assertion.
-  - `wikimedia-mcp/scripts/assert-flags.mjs` (new) — default-off/default-on CI passes for the flag.
+  - `src/compare/{constants,schemas,handlers}.ts` (new) — Zod schema, bounded diff output, `source`/`lang`/`project` allowlist, `ttlMs`/`cacheScope` where mandated by contract.
+  - `src/config.ts` (edit, additive) — flag `MCP_ENABLE_COMPARE_REVISIONS` default `false`, following the existing boolean-env pattern.
+  - `src/server/tools/registry.ts` (edit, additive) — conditionally add to `PHASE1/activeToolNames()`-equivalent registration only when flag is true; default `TOOL_NAMES` stays 28.
+  - `tests/unit/compare-revisions.test.ts` + a new `tests/contract/compare.test.ts` (new) — schema, bounds, flag-off absence, flag-on registration.
+  - `scripts/assert-catalogue.mjs` (edit, additive only) — assert flag-off = 28; add a separate flag-on check that expects 29 without removing any existing assertion.
+  - `scripts/assert-flags.mjs` (new) — default-off/default-on CI passes for the flag.
 - **Acceptance criteria:**
   - [ ] With no flag set: catalogue **28**, tool absent, 23-tool read-only unchanged.
   - [ ] With flag `true`: tool present (29), schema validates, fixture returns bounded diff with provenance/`ttlMs`.
@@ -245,12 +245,12 @@ npm run build && WMCP_LIVE=1 npx vitest run tests/live/live.test.ts
 - **Goal:** Add a flagged, default-off read tool wrapping `list=categorymembers`.
 - **Inputs / dependencies:** WP6 decision = BUILD. Independent of WP7 (can run in parallel once WP6 exits).
 - **Files / areas to touch:**
-  - `wikimedia-mcp/src/categories/{constants,schemas,handlers}.ts` (new) — bounded `cmtitle`/`cmnamespace`/`cmlimit` schema, continuation cursor, `ttlMs`/`cacheScope` where mandated.
-  - `wikimedia-mcp/src/config.ts` (edit, additive) — flag `MCP_ENABLE_GET_CATEGORY_MEMBERS` default `false`.
-  - `wikimedia-mcp/src/server/tools/registry.ts` (edit, additive) — conditional registration as in WP7.
-  - `wikimedia-mcp/tests/unit/get-category-members.test.ts` + `tests/contract/categories.test.ts` (new).
-  - `wikimedia-mcp/scripts/assert-catalogue.mjs` (edit, additive) — flag-off 28 / flag-on 29; no existing assertion removed.
-  - `wikimedia-mcp/scripts/assert-flags.mjs` (edit, additive) — second flag pair.
+  - `src/categories/{constants,schemas,handlers}.ts` (new) — bounded `cmtitle`/`cmnamespace`/`cmlimit` schema, continuation cursor, `ttlMs`/`cacheScope` where mandated.
+  - `src/config.ts` (edit, additive) — flag `MCP_ENABLE_GET_CATEGORY_MEMBERS` default `false`.
+  - `src/server/tools/registry.ts` (edit, additive) — conditional registration as in WP7.
+  - `tests/unit/get-category-members.test.ts` + `tests/contract/categories.test.ts` (new).
+  - `scripts/assert-catalogue.mjs` (edit, additive) — flag-off 28 / flag-on 29; no existing assertion removed.
+  - `scripts/assert-flags.mjs` (edit, additive) — second flag pair.
 - **Acceptance criteria:**
   - [ ] Flag-off: catalogue 28, tool absent; flag-on: 29, tool present with valid bounded schema.
   - [ ] Continuation cursor is opaque and bounded; malformed cursor → `invalid_cursor` with the existing `DEFAULT_ACTIONS` recovery hint.
@@ -269,10 +269,10 @@ npm run build && WMCP_LIVE=1 npx vitest run tests/live/live.test.ts
 - **Goal:** Emit correct MCP client snippets for every documented host, including OpenCode's mandatory `protocol:"2026-07-28"` key, eliminating the known misconfiguration class.
 - **Inputs / dependencies:** After Tranche 1. Independent of WP6–WP8. Reuses the host matrix in research report 06 and `handoff/DEPLOYMENT-RUNBOOK.md` §2 config block.
 - **Files / areas to touch:**
-  - `wikimedia-mcp/src/cli/config-generator.ts` (new) — host profiles for Grok, OpenCode, Cursor, Codex, Cline and the generic stdio/HTTP cases; emits JSON snippets with `protocol` where required.
-  - `wikimedia-mcp/src/cli/index.ts` (edit) — register `config` subcommand.
-  - `wikimedia-mcp/tests/unit/config-generator.test.ts` (new) — snapshot each host; assert OpenCode includes `protocol:"2026-07-28"`.
-  - `wikimedia-mcp/README.md` (additive) — document `npm run wmcp -- config <host>`.
+  - `src/cli/config-generator.ts` (new) — host profiles for Grok, OpenCode, Cursor, Codex, Cline and the generic stdio/HTTP cases; emits JSON snippets with `protocol` where required.
+  - `src/cli/index.ts` (edit) — register `config` subcommand.
+  - `tests/unit/config-generator.test.ts` (new) — snapshot each host; assert OpenCode includes `protocol:"2026-07-28"`.
+  - `README.md` (additive) — document `npm run wmcp -- config <host>`.
 - **Acceptance criteria:**
   - [ ] Every host named in report 06's matrix produces a snippet; OpenCode snippet contains `protocol` exactly `"2026-07-28"`.
   - [ ] Generated snippets never include a secret, token or wildcard host/origin.
@@ -287,9 +287,9 @@ npm run build && WMCP_LIVE=1 npx vitest run tests/live/live.test.ts
 - **Goal:** Determine, within a fixed budget, whether a contained opt-in `initialize`-handshake adapter can translate legacy Codex/Cursor requests without duplicating the protocol stack. Produce a decision; ship no shim.
 - **Inputs / dependencies:** After Tranche 1. Reuses `handoff/GROUP-D-REVERSAL-WATCH.md` as the time-boxed watch/decision template.
 - **Files / areas to touch:**
-  - `wikimedia-mcp-research/19a-legacy-adapter-study.md` (new research/decision artefact — the only new file outside the implementation plan; if the single-file constraint of the planning step still applies to implementers, fold into `handoff/legacy-compat-study.md` instead) — hypothesis, time box (**≤5 working days**), test matrix against Codex/Cursor, findings, BUILD/KEEP-MODERN-ONLY decision.
+  - `research/19a-legacy-adapter-study.md` (new research/decision artefact — the only new file outside the implementation plan; if the single-file constraint of the planning step still applies to implementers, fold into `handoff/legacy-compat-study.md` instead) — hypothesis, time box (**≤5 working days**), test matrix against Codex/Cursor, findings, BUILD/KEEP-MODERN-ONLY decision.
   - `spikes/legacy-adapter/` (new, non-shipped) — throwaway adapter probe; excluded from `tsconfig.json`/build inputs.
-  - `wikimedia-mcp/package.json` / `src/**` — **no production change permitted in this WP**.
+  - `package.json` / `src/**` — **no production change permitted in this WP**.
 - **Acceptance criteria:**
   - [ ] Decision artefact contains an explicit `BUILD` or `KEEP MODERN-ONLY` verdict with evidence and named date.
   - [ ] Time box not exceeded; no production registration, no shipped shim, no `initialize` code in `src/`.
@@ -305,10 +305,10 @@ npm run build && WMCP_LIVE=1 npx vitest run tests/live/live.test.ts
 - **Goal:** Derive Markdown tool documentation from the shipped Zod schemas so docs cannot drift.
 - **Inputs / dependencies:** After Tranche 1. Scaffold now; **regenerate at portfolio DoD** so it reflects WP7/WP8/WP12–WP15 additive fields.
 - **Files / areas to touch:**
-  - `wikimedia-mcp/scripts/gen-tool-reference.mjs` (new) — import built schemas from `dist/`, emit deterministic Markdown.
-  - `wikimedia-mcp/TOOLS.md` (new, generated) — committed output.
-  - `wikimedia-mcp/package.json` (additive script `docs:tools`).
-  - `wikimedia-mcp/tests/unit/tool-reference.test.ts` (new) — deterministic output, field coverage, no secret.
+  - `scripts/gen-tool-reference.mjs` (new) — import built schemas from `dist/`, emit deterministic Markdown.
+  - `TOOLS.md` (new, generated) — committed output.
+  - `package.json` (additive script `docs:tools`).
+  - `tests/unit/tool-reference.test.ts` (new) — deterministic output, field coverage, no secret.
 - **Acceptance criteria:**
   - [ ] `npm run docs:tools` produces byte-identical `TOOLS.md` on two consecutive runs.
   - [ ] Every schema field for every registered tool appears; no secret or internal-only field appears.
@@ -326,7 +326,7 @@ npm run build && WMCP_LIVE=1 npx vitest run tests/live/live.test.ts
 
 - **Goal:** Add bounded, explainable `relevance_reason` and canonical-title resolution on `search`/`get_related_pages`.
 - **Inputs / dependencies:** After Tranche 1; independent of Tranche 2/3. Reuses `src/resolver.ts`, `src/lang.ts`.
-- **Files / areas to touch:** `src/server/tools/handlers.ts`, `src/resolver.ts`, `src/types.ts` (add optional fields), `tests/unit/ranking-hints.test.ts` (new), corpus cases appended to `wikimedia-mcp-research/test-corpus.json` (additive cases only, no existing case edited).
+- **Files / areas to touch:** `src/server/tools/handlers.ts`, `src/resolver.ts`, `src/types.ts` (add optional fields), `tests/unit/ranking-hints.test.ts` (new), corpus cases appended to `research/test-corpus.json` (additive cases only, no existing case edited).
 - **Acceptance criteria:**
   - [ ] New fields are optional and additive; removing them from an assertion still yields a valid prior-shape response (superset check).
   - [ ] `relevance_reason` is one of a fixed enumerated set; canonical title resolves to the server's allowlisted project/lang only.
@@ -586,8 +586,8 @@ Follow the existing conventional-commit style and the tag pattern already used i
 | `handoff/NIGHTLY-SCHEDULER.md` | WP6, WP16, WP17, WP18 | report collection, alert snippet, 330/300 call mix, retention |
 | `handoff/G8-UPLOAD-TOC-CHECKLIST.md` | WP1, WP5 | G8 evidence path; upload remains failed closed |
 | `handoff/GROUP-D-REVERSAL-WATCH.md` | WP10 | template for time-boxed study/watch decision |
-| `wikimedia-mcp/write-security/**` | WP2, WP3, WP4, WP5 | records/ and evidence/ dirs; additive doc notes only |
-| `wikimedia-mcp/reports/nightly-live.json` | WP1, WP6, WP16 | baseline + additive report fields, same JSON convention |
+| `write-security/**` | WP2, WP3, WP4, WP5 | records/ and evidence/ dirs; additive doc notes only |
+| `reports/nightly-live.json` | WP1, WP6, WP16 | baseline + additive report fields, same JSON convention |
 
 ---
 

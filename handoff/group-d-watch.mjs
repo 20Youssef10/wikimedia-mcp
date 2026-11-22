@@ -4,7 +4,7 @@
  *
  * Queries the official MCP registry, npm and GitHub public APIs for
  * recent-change / EventStreams demand signals, compares them with the
- * thresholds recorded in wikimedia-mcp-research/12-group-d-spike.md, and writes
+ * thresholds recorded in research/12-group-d-spike.md, and writes
  * a JSON report to handoff/group-d-watch-report.json (next to this script).
  *
  * No dependency beyond Node built-ins + global fetch. No remote writes, no
@@ -36,7 +36,7 @@ const NPM_PACKAGES = {
 
 /** Baseline observations from report 12 (all observed 2026-11-21). */
 const BASELINE = {
-  source: '../wikimedia-mcp-research/12-group-d-spike.md',
+  source: 'research/12-group-d-spike.md',
   observed_at: '2026-11-21',
   registry_exact_query_counts: {
     'recent changes': 0,

@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const CORPUS_PATH = path.resolve(here, '../../wikimedia-mcp-research/test-corpus.json');
+const CORPUS_PATH = path.resolve(here, '../research/test-corpus.json');
 
 export type CorpusCase = {
   id: string;

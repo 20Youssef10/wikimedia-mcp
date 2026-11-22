@@ -66,7 +66,7 @@ Before pinning, in a clean directory:
 ### 2.4 Project layout
 
 ```
-wikimedia-mcp/
+
 ├── package.json, package-lock.json, tsconfig.json, tsconfig.test.json
 ├── .env.example, SDK-VERIFICATION.md, README.md
 ├── src/
@@ -94,7 +94,7 @@ wikimedia-mcp/
 │   ├── attribution/assemble.ts   # licence/attribution/source/revision injection
 │   └── observability/logging.ts  # correlation IDs; never logs credentials
 └── tests/
-    ├── corpus-loader.ts          # loads ../wikimedia-mcp-research/test-corpus.json
+    ├── corpus-loader.ts          # loads research/test-corpus.json
     ├── unit/, contract/, security/, resilience/, live/
     └── fixtures/cassettes/<group>/<tool>_<case_id>.yaml
 ```
@@ -549,7 +549,7 @@ Frozen 2026-11-21 from: reports 01–08, `test-corpus.json`, live primary source
 
 ## 8. Implementation verification (2026-11-21)
 
-Built at `../wikimedia-mcp/`. Evidence in that project's `SDK-VERIFICATION.md` and `README.md`.
+Built at `./`. Evidence in that project's `SDK-VERIFICATION.md` and `README.md`.
 
 | Gate | Result |
 |------|--------|

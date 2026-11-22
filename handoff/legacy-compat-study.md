@@ -13,10 +13,10 @@ approval is recorded here).
 inside that box using already-verified host evidence; no new live host probes
 were run, so no unrecorded observations are claimed.
 
-**Grounding:** `wikimedia-mcp-research/06-validation-and-economics.md` §3 and
+**Grounding:** `research/06-validation-and-economics.md` §3 and
 §7.1 (verified host compatibility, 2026-11-21);
-`wikimedia-mcp-research/18-enhancement-design.md` §7 and decision D2;
-`wikimedia-mcp-research/19-enhancement-implementation-plan.md` §§3, 5.2, 7 (R5),
+`research/18-enhancement-design.md` §7 and decision D2;
+`research/19-enhancement-implementation-plan.md` §§3, 5.2, 7 (R5),
 WP10; contract 09 §2.5 (MCP 2026-07-28 only); `handoff/DEPLOYMENT-RUNBOOK.md`
 §2 and `handoff/GROUP-D-REVERSAL-WATCH.md` (template).
 

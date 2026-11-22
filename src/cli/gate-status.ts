@@ -73,13 +73,13 @@ const GATE_DEFINITIONS: readonly GateDefinition[] = [
   {
     id: 'G1', title: 'Threat re-review and three-way sign-off (AC-155)',
     baseStatus: 'UNSIGNED', signed: false,
-    evidence: ['write-security/signoff.md', '../handoff/SIGNOFF-TEMPLATES.md', '../wikimedia-mcp-research/17-threat-model-rereview.md'],
+    evidence: ['write-security/signoff.md', 'handoff/SIGNOFF-TEMPLATES.md', 'research/17-threat-model-rereview.md'],
     residualRisks: ['Requester risk acceptance only; independent named signatures not obtained.', 'Formal gate remains not signed; write tools stay fail-closed.'],
   },
   {
     id: 'G2', title: 'OAuth issuer, CIMD and token binding',
     baseStatus: 'EVIDENCED', signed: false,
-    evidence: ['../handoff/OAUTH-CIMD-TEMPLATE.md', 'src/write/auth.ts'],
+    evidence: ['handoff/OAUTH-CIMD-TEMPLATE.md', 'src/write/auth.ts'],
     residualRisks: ['No real issuer/CIMD/JWKS round-trip exercised in the default deployment.'],
   },
   {
@@ -103,19 +103,19 @@ const GATE_DEFINITIONS: readonly GateDefinition[] = [
   {
     id: 'G6', title: 'HMAC audit chain and external WORM anchor',
     baseStatus: 'PARTIAL', signed: false,
-    evidence: ['../handoff/WORM-AUDIT-SPEC.md', 'src/write/audit.ts', 'src/write/audit-sink.ts'],
+    evidence: ['handoff/WORM-AUDIT-SPEC.md', 'src/write/audit.ts', 'src/write/audit-sink.ts'],
     residualRisks: ['Default sink is local-noop; an external WORM sink and 365-day sink-enforced retention are operator actions.', 'Chain verification is now automatic on anchor and export; retention is not claimed by the store.'],
   },
   {
     id: 'G7', title: 'Dry-run diff preview and verified rollback path',
     baseStatus: 'PARTIAL', signed: false,
-    evidence: ['../handoff/REAL-WIKI-ROLLBACK-PLAN.md', 'write-security/rollback-runbooks.md', 'src/cli/rollback-harness.ts'],
+    evidence: ['handoff/REAL-WIKI-ROLLBACK-PLAN.md', 'write-security/rollback-runbooks.md', 'src/cli/rollback-harness.ts'],
     residualRisks: ['Real-wiki rollback remains untested; a human must execute and sign the testwiki evidence.'],
   },
   {
     id: 'G8', title: 'Upload licence / ToU compliance sign-off',
     baseStatus: 'UNSIGNED', signed: false,
-    evidence: ['../handoff/G8-UPLOAD-TOC-CHECKLIST.md', 'write-security/upload-tou-checklist.md'],
+    evidence: ['handoff/G8-UPLOAD-TOC-CHECKLIST.md', 'write-security/upload-tou-checklist.md'],
     residualRisks: ['Legal/Compliance record pending; uploads remain failed closed with licence_not_signed_off.'],
   },
   {

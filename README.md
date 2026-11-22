@@ -103,7 +103,7 @@ non-browser hosts keep working) are provided for the HTTP transport:
 > (G1–G12). Today they are off because this server is **read-only** — no write
 > tool and no write credential exists. The CSRF mechanism is shipped and tested
 > with a test-only harness (never registered in production); it does not itself
-> enable writing. See `../wikimedia-mcp-research/14-read-only-signoff.md`.
+> enable writing. See `research/14-read-only-signoff.md`.
 
 ### Configuration
 
@@ -364,7 +364,7 @@ The five write tools (`edit_page`, `protect_page`, `move_page`, `delete_page`, `
 
 With no OAuth/CIMD configuration supplied, write calls fail closed (`authentication_required`/`invalid_issuer`) and G8 leaves real uploads blocked (`licence_not_signed_off`). `READ_ONLY_PROFILE=1` restores the 23-tool read-only catalogue. Verification uses the fixture harness only; no real wiki write is performed.
 
-See `write-security/{signoff,rollback-runbooks,two-person-approval-runbook,upload-tou-checklist,incident-revocation-drill}.md` and `../wikimedia-mcp-research/17-threat-model-rereview.md`.
+See `write-security/{signoff,rollback-runbooks,two-person-approval-runbook,upload-tou-checklist,incident-revocation-drill}.md` and `research/17-threat-model-rereview.md`.
 
 ## Gate-first spine CLI (WP1–WP5)
 

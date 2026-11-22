@@ -2,7 +2,7 @@
 
 **Status:** monitoring procedure. The watcher is **read-only**: all HTTP calls are GETs to public APIs; the only file it writes is `handoff/group-d-watch-report.json` next to the script. It has no credentials and cannot modify the registry, npm, GitHub or the server. It has **not** been run as part of this hand-off.
 
-**Grounding:** `wikimedia-mcp-research/12-group-d-spike.md` §2 (demand re-check) and §6 (recommendation / reversal triggers), `wikimedia-mcp/README.md:385-408` (Group D tool feeds no nightly gate), research report 15 (contract v6.x).
+**Grounding:** `research/12-group-d-spike.md` §2 (demand re-check) and §6 (recommendation / reversal triggers), `README.md:385-408` (Group D tool feeds no nightly gate), research report 15 (contract v6.x).
 
 ---
 

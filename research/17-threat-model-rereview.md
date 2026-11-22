@@ -33,7 +33,7 @@
 10. Dry-run and rollback documentation — evidenced as documentation; rollback *execution* against a real wiki is not.
 11. Two-person approval enforcement — evidenced in the harness; out-of-band channel rollout is not.
 12. G9 injection canaries with writes enabled — evidenced in the isolated test harness.
-13. G12 incident/revocation drill — executed in the harness; see `wikimedia-mcp/write-security/incident-revocation-drill.md`.
+13. G12 incident/revocation drill — executed in the harness; see `write-security/incident-revocation-drill.md`.
 
 ## Gate conclusion
 G1's *technical re-review* is complete. The formal gate remains **NOT SIGNED**: AC-155 requires Security Architect, Backend Lead and Product Owner signatures and the G8 human compliance sign-off. Consequently no write tool ships.

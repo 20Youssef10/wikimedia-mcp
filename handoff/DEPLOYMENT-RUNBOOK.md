@@ -2,7 +2,7 @@
 
 **Status:** operational hand-off draft. **No real wiki write has ever been performed in this repository.** All write evidence comes from the isolated fixture harness (`tests/write/`), never from a live wiki. Do not read this document as authorisation to write.
 
-**Grounding:** `wikimedia-mcp/src/config.ts`, `wikimedia-mcp/src/write/config.ts`, `wikimedia-mcp/.env.example`, `wikimedia-mcp/package.json`, `wikimedia-mcp/README.md` §"Security / write tooling", `wikimedia-mcp/scripts/{assert-read-only,assert-catalogue}.mjs`, `wikimedia-mcp/write-security/signoff.md`, research reports 08 §6/§8, 14, 16, 17.
+**Grounding:** `src/config.ts`, `src/write/config.ts`, `.env.example`, `package.json`, `README.md` §"Security / write tooling", `scripts/{assert-read-only,assert-catalogue}.mjs`, `write-security/signoff.md`, research reports 08 §6/§8, 14, 16, 17.
 
 All commands below run with working directory `/data/data/com.termux/files/home/wiki-mcp/wikimedia-mcp` unless stated otherwise. Node >= 22 is required (`package.json` `engines`).
 

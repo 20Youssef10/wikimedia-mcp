@@ -6,7 +6,7 @@
 npm run build && WMCP_LIVE=1 npx vitest run tests/live/live.test.ts
 ```
 
-**Grounding:** `wikimedia-mcp/README.md:373-381`, `tests/live/live.test.ts:15-23`, `src/observability/nightly-report.ts`, `reports/nightly-live.json` (sample output), `package.json:11-20`, `vitest.config.ts`.
+**Grounding:** `README.md:373-381`, `tests/live/live.test.ts:15-23`, `src/observability/nightly-report.ts`, `reports/nightly-live.json` (sample output), `package.json:11-20`, `vitest.config.ts`.
 
 ---
 
@@ -29,12 +29,12 @@ SHELL=/bin/bash
 PATH=/usr/local/bin:/usr/bin:/bin:PLACEHOLDER_NODE_BIN_DIR
 MAILTO=PLACEHOLDER_ONCALL_ALIAS
 
-30 2 * * * cd /path/to/wikimedia-mcp && flock -n /tmp/wmcp-nightly.lock bash -c 'npm run build && WMCP_LIVE=1 npx vitest run tests/live/live.test.ts' >> /var/log/wikimedia-mcp/nightly.log 2>&1
+30 2 * * * cd /path/to/wikimedia-mcp && flock -n /tmp/wmcp-nightly.lock bash -c 'npm run build && WMCP_LIVE=1 npx vitest run tests/live/live.test.ts' >> /var/log/nightly.log 2>&1
 ```
 
 Notes:
 
-- Keep `WMCP_NIGHTLY_REPORT_PATH` unset to use `reports/nightly-live.json`, or set it in the crontab line, e.g. `WMCP_NIGHTLY_REPORT_PATH=/var/lib/wikimedia-mcp/reports/nightly-live.json`.
+- Keep `WMCP_NIGHTLY_REPORT_PATH` unset to use `reports/nightly-live.json`, or set it in the crontab line, e.g. `WMCP_NIGHTLY_REPORT_PATH=/var/lib/reports/nightly-live.json`.
 - `flock -n` drops overlapping runs silently; alert on a missing/new report instead of a duplicate.
 - On Termux, use `$PREFIX/bin/bash`/`$PREFIX/bin/npm` equivalents and an accessible working directory; the example above targets a conventional Linux host.
 
@@ -55,12 +55,12 @@ Type=oneshot
 User=PLACEHOLDER_SERVICE_USER
 WorkingDirectory=/path/to/wikimedia-mcp
 Environment=WMCP_LIVE=1
-Environment=WMCP_NIGHTLY_REPORT_PATH=/var/lib/wikimedia-mcp/reports/nightly-live.json
+Environment=WMCP_NIGHTLY_REPORT_PATH=/var/lib/reports/nightly-live.json
 Environment=PATH=/usr/local/bin:/usr/bin:/bin:PLACEHOLDER_NODE_BIN_DIR
 ExecStart=/usr/bin/env bash -c 'npm run build && npx vitest run tests/live/live.test.ts'
 TimeoutStartSec=3600
-StandardOutput=append:/var/log/wikimedia-mcp/nightly.log
-StandardError=append:/var/log/wikimedia-mcp/nightly.log
+StandardOutput=append:/var/log/nightly.log
+StandardError=append:/var/log/nightly.log
 ```
 
 `/etc/systemd/system/wmcp-nightly.timer`:
@@ -158,7 +158,7 @@ After each run, copy the report to durable storage (the source path is gitignore
 
 ```sh
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
-cp /path/to/wikimedia-mcp/reports/nightly-live.json \
+cp /path/to/reports/nightly-live.json \
    /srv/wmcp/report-archive/nightly-live-${STAMP}.json
 ```
 

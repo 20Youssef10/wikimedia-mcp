@@ -2,7 +2,7 @@
 
 **Status: PENDING — HUMAN LEGAL/COMPLIANCE REVIEW REQUIRED. NOT COMPLETE. DO NOT ENABLE REAL UPLOADS ON THE STRENGTH OF THIS DOCUMENT.**
 
-This is a **blank template** for the human compliance owner. It is not a legal approval, contains no reviewer names, and has not been signed. The existing `wikimedia-mcp/write-security/upload-tou-checklist.md` also remains PENDING. In the current build, `MCP_UPLOAD_TOU_SIGNED_BY` has no genuine named sign-off, so `upload_file` preview/dry-run works but real upload execution fails closed with `licence_not_signed_off` (`write-security/signoff.md:11-14`). Setting a placeholder value to bypass that check is a policy violation.
+This is a **blank template** for the human compliance owner. It is not a legal approval, contains no reviewer names, and has not been signed. The existing `write-security/upload-tou-checklist.md` also remains PENDING. In the current build, `MCP_UPLOAD_TOU_SIGNED_BY` has no genuine named sign-off, so `upload_file` preview/dry-run works but real upload execution fails closed with `licence_not_signed_off` (`write-security/signoff.md:11-14`). Setting a placeholder value to bypass that check is a policy violation.
 
 **Grounding:** `write-security/upload-tou-checklist.md` (checks 1–7), research report 16 §2.7 / AC-146 / AC-152, report 08 §6.2 G8, report 14 WP1.
 

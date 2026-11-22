@@ -2,7 +2,7 @@
 
 **Status: ROLE-TITLE PLACEHOLDERS ONLY — NOT SIGNED.** Per the Product Owner's 2026-11-21 instruction, the three role titles have been entered in the Name fields, but no personal names, dates, decisions or signatures have been invented. **This is an owner map, not a genuine sign-off.** G1/AC-155 remains unsatisfied until each named human signs their own block below.
 
-`wikimedia-mcp/write-security/signoff.md` records **requester risk acceptance only**: independent named signatures from a Security Architect, Backend Lead and Product Owner were **not** obtained; G8 Legal/Compliance sign-off remains PENDING; rollback on a real wiki is untested; no real issuer/WORM/revocation round-trip was exercised. These templates exist so that **genuine human signatories** can record a real decision. Do not copy a name from any other document into these blocks.
+`write-security/signoff.md` records **requester risk acceptance only**: independent named signatures from a Security Architect, Backend Lead and Product Owner were **not** obtained; G8 Legal/Compliance sign-off remains PENDING; rollback on a real wiki is untested; no real issuer/WORM/revocation round-trip was exercised. These templates exist so that **genuine human signatories** can record a real decision. Do not copy a name from any other document into these blocks.
 
 **Grounding:** research report 08 §6.2 gates G1–G12 and §8 sign-off checklist (role line at `:474`), report 14 §7 write-enablement checklist, report 16 §8 / AC-155 (`:522-547`), report 17 (G1 technical re-review complete, formal gate NOT signed), `write-security/signoff.md`.
 

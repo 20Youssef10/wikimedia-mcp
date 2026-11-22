@@ -3,7 +3,7 @@
 **Document version:** 2026-11-21 (first issue)  
 **Language:** en-GB (British English)  
 **Classification:** Internal — security engineering sign-off  
-**Subject:** Read-only server at `../wikimedia-mcp/` (package `wikimedia-mcp@3.0.0`, MCP 2026-07-28)  
+**Subject:** Read-only server at `./` (package `wikimedia-mcp@3.0.0`, MCP 2026-07-28)  
 **Authority:** report 08 (formal threat model), §6 design gates, §7 verification, §8 sign-off checklist  
 **Scope of this sign-off:** **READ-ONLY DEPLOYMENT ONLY.** It explicitly does **not** sign off write enablement.
 
@@ -34,7 +34,7 @@ is in §5; its write-enablement checklist in §7 is deliberately **unchecked**.
 
 ## 2. Gap closure performed in this pass
 
-All changes are confined to `../wikimedia-mcp/` plus this research file.
+All changes are confined to `./` plus this research file.
 
 | Gate sub-gap (from the gate-gap findings) | Action taken | Evidence |
 |---|---|---|
@@ -73,7 +73,7 @@ remain **NOT EVIDENCED**. Write enablement is therefore **blocked**.
 
 ## 4. Verification results (exact, from this pass)
 
-All commands run from `../wikimedia-mcp/`. Exit codes were 0 unless stated.
+All commands run from `./`. Exit codes were 0 unless stated.
 
 | Check | Result |
 |---|---|

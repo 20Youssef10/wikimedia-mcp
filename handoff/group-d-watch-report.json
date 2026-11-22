@@ -5,7 +5,7 @@
   "automated": true,
   "writes_performed": "local report file only; all HTTP calls were GET",
   "baseline": {
-    "source": "../wikimedia-mcp-research/12-group-d-spike.md",
+    "source": "research/12-group-d-spike.md",
     "observed_at": "2026-11-21",
     "registry_exact_query_counts": {
       "recent changes": 0,
